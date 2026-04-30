@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GitHub Release Notifier</title>
+    <style>
+      :root {
+        --bg: #0e0e0f;
+        --surface: #161618;
+        --border: rgba(255, 255, 255, 0.08);
+        --text: #f0f0f0;
+        --muted: #888;
+        --success: #4ade80;
+        --error: #f87171;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 3rem 1rem;
+        background: var(--bg);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui,
+          sans-serif;
+      }
+
+      .card {
+        width: 100%;
+        max-width: 440px;
+        padding: 2rem;
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        background: var(--surface);
+      }
+
+      h1 {
+        margin: 0 0 0.5rem;
+        font-size: 1.1rem;
+      }
+
+      p {
+        margin: 0 0 1.5rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      label {
+        display: block;
+        margin: 0.75rem 0 0.35rem;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+
+      input {
+        width: 100%;
+        padding: 0.65rem 0.8rem;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #1e1e21;
+        color: var(--text);
+        font: inherit;
+      }
+
+      button {
+        width: 100%;
+        margin-top: 1rem;
+        padding: 0.7rem 0.9rem;
+        border: 0;
+        border-radius: 8px;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+      }
+
+      .message {
+        margin-top: 1rem;
+        font-size: 0.9rem;
+      }
+
+      .message.success {
+        color: var(--success);
+      }
+
+      .message.error {
+        color: var(--error);
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>Subscribe to GitHub releases</h1>
+      <p>Get an email whenever a new release appears in a repository.</p>
+
+      <form id="subscribe-form">
+        <label for="email">Email</label>
+        <input id="email" type="email" placeholder="you@example.com" required />
+
+        <label for="repo">Repository</label>
+        <input id="repo" type="text" placeholder="owner/repo" required />
+
+        <button id="submit-btn" type="submit">Subscribe</button>
+      </form>
+
+      <div id="message" class="message" aria-live="polite"></div>
+    </main>
+
+    <script>
+      const form = document.getElementById('subscribe-form');
+      const submitBtn = document.getElementById('submit-btn');
+      const message = document.getElementById('message');
+
+      const showMessage = (type, text) => {
+        message.className = `message ${type}`;
+        message.textContent = text;
+      };
+
+      const parseResponsePayload = async (response) => {
+        const raw = await response.text();
+        if (!raw) {
+          return null;
+        }
+
+        try {
+          return JSON.parse(raw);
+        } catch {
+          return { raw };
+        }
+      };
+
+      const getErrorMessage = (response, payload) => {
+        if (payload && typeof payload === 'object') {
+          if (
+            Array.isArray(payload.errors) &&
+            payload.errors.length > 0 &&
+            typeof payload.errors[0]?.message === 'string'
+          ) {
+            return payload.errors[0].message;
+          }
+
+          if (typeof payload.message === 'string' && payload.message.trim()) {
+            return payload.message;
+          }
+        }
+
+        return `Request failed (${response.status}). Please try again.`;
+      };
+
+      form.addEventListener('submit', async (event) => {
+        event.preventDefault();
+
+        const email = document.getElementById('email').value.trim();
+        const repo = document.getElementById('repo').value.trim();
+
+        submitBtn.disabled = true;
+        message.className = 'message';
+        message.textContent = '';
+
+        try {
+          const response = await fetch('/web/subscribe', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, repo }),
+          });
+          const payload = await parseResponsePayload(response);
+
+          if (!response.ok) {
+            showMessage('error', getErrorMessage(response, payload));
+            return;
+          }
+
+          if (
+            payload &&
+            typeof payload === 'object' &&
+            typeof payload.message === 'string' &&
+            payload.message.trim()
+          ) {
+            showMessage('success', payload.message);
+            form.reset();
+            return;
+          }
+
+          showMessage(
+            'success',
+            'Success. Check your email to confirm the subscription.',
+          );
+          form.reset();
+        } catch {
+          showMessage('error', 'Could not reach server. Please try again.');
+        } finally {
+          submitBtn.disabled = false;
+        }
+      });
+    </script>
+  </body>
+</html>
