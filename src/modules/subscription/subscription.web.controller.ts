@@ -28,24 +28,21 @@ webController.post(
   },
 );
 
-webController.get(
-  '/confirm/:token',
-  async (req: Request, res: Response) => {
-    try {
-      const { token } = tokenParamSchema.parse(req.params);
-      await confirmSubscription({ token });
+webController.get('/confirm/:token', async (req: Request, res: Response) => {
+  try {
+    const { token } = tokenParamSchema.parse(req.params);
+    await confirmSubscription({ token });
 
-      res.send(
-        renderHtmlMessage(
-          'Confirmed',
-          'Your subscription has been confirmed successfully.',
-        ),
-      );
-    } catch (error) {
-      sendWebError(res, error);
-    }
-  },
-);
+    res.send(
+      renderHtmlMessage(
+        'Confirmed',
+        'Your subscription has been confirmed successfully.',
+      ),
+    );
+  } catch (error) {
+    sendWebError(res, error);
+  }
+});
 
 webController.get(
   '/unsubscribe/:token',

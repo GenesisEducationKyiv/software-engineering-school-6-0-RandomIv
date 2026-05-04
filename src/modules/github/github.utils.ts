@@ -41,7 +41,10 @@ export const githubHttpClient = async <T>(path: string): Promise<T> => {
           return cachedResponse;
         }
       } catch (cacheError) {
-        console.error(`[GitHub] Failed to read cache for ${cacheKey}:`, cacheError);
+        console.error(
+          `[GitHub] Failed to read cache for ${cacheKey}:`,
+          cacheError,
+        );
       }
     }
 

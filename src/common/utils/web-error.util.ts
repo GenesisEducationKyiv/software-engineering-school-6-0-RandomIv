@@ -6,7 +6,9 @@ import { renderHtmlMessage } from '../views/html.template';
 export const sendWebError = (res: Response, error: unknown): void => {
   if (error instanceof AppError) {
     const title = error.statusCode >= 500 ? 'Error' : 'Request failed';
-    res.status(error.statusCode).send(renderHtmlMessage(title, error.message, true));
+    res
+      .status(error.statusCode)
+      .send(renderHtmlMessage(title, error.message, true));
     return;
   }
 
@@ -14,7 +16,11 @@ export const sendWebError = (res: Response, error: unknown): void => {
     res
       .status(400)
       .send(
-        renderHtmlMessage('Invalid link', 'The link is invalid or malformed.', true),
+        renderHtmlMessage(
+          'Invalid link',
+          'The link is invalid or malformed.',
+          true,
+        ),
       );
     return;
   }

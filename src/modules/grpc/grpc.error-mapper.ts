@@ -36,7 +36,10 @@ const formatValidationError = (error: ZodError): string => {
 
 export const toGrpcServiceError = (error: unknown): ServiceError => {
   if (error instanceof ZodError) {
-    return buildGrpcError(status.INVALID_ARGUMENT, formatValidationError(error));
+    return buildGrpcError(
+      status.INVALID_ARGUMENT,
+      formatValidationError(error),
+    );
   }
 
   if (error instanceof AppError) {

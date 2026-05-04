@@ -24,7 +24,8 @@ import type {
   UnsubscribeRequest,
 } from './grpc.types';
 
-const SUBSCRIBE_SUCCESS_MESSAGE = 'Subscription successful. Confirmation email sent.';
+const SUBSCRIBE_SUCCESS_MESSAGE =
+  'Subscription successful. Confirmation email sent.';
 const CONFIRM_SUCCESS_MESSAGE = 'Subscription confirmed successfully';
 const UNSUBSCRIBE_SUCCESS_MESSAGE = 'Unsubscribed successfully';
 const API_KEY_METADATA_KEY = 'x-api-key';
@@ -34,13 +35,15 @@ const withUnaryHandler = <TRequest, TResponse>(
     call: grpc.ServerUnaryCall<TRequest, TResponse>,
   ) => Promise<TResponse>,
 ): grpc.handleUnaryCall<TRequest, TResponse> => {
-  return async (call, callback) => {
-    try {
-      const result = await handler(call);
-      callback(null, result);
-    } catch (error) {
-      callback(toGrpcServiceError(error));
-    }
+  return (call, callback) => {
+    void (async () => {
+      try {
+        const result = await handler(call);
+        callback(null, result);
+      } catch (error) {
+        callback(toGrpcServiceError(error));
+      }
+    })();
   };
 };
 
@@ -98,7 +101,9 @@ const getSubscriptions = withUnaryHandler<
 >(async (call) => {
   ensureAuthorized(call.metadata);
 
-  const { email } = subscriptionsQuerySchema.parse({ email: call.request.email });
+  const { email } = subscriptionsQuerySchema.parse({
+    email: call.request.email,
+  });
   const subscriptions = await getSubscriptionsByEmail({ email });
 
   return {

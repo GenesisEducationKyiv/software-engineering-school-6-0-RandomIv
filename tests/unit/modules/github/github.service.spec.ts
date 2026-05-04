@@ -41,7 +41,9 @@ describe('github.service', () => {
 
   describe('getLatestReleaseTag', () => {
     it('returns release tag when response is valid', async () => {
-      mockedGithubHttpClient.mockResolvedValueOnce({ tag_name: 'v1.2.3' } as never);
+      mockedGithubHttpClient.mockResolvedValueOnce({
+        tag_name: 'v1.2.3',
+      } as never);
 
       await expect(getLatestReleaseTag('owner/repo')).resolves.toBe('v1.2.3');
       expect(mockedGithubHttpClient).toHaveBeenCalledWith(
@@ -56,7 +58,9 @@ describe('github.service', () => {
     });
 
     it('throws when response does not match schema', async () => {
-      mockedGithubHttpClient.mockResolvedValueOnce({ invalid: 'shape' } as never);
+      mockedGithubHttpClient.mockResolvedValueOnce({
+        invalid: 'shape',
+      } as never);
 
       await expect(getLatestReleaseTag('owner/repo')).rejects.toThrow();
     });

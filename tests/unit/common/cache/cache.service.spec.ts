@@ -24,9 +24,9 @@ describe('cache.service', () => {
     };
     mockedGetRedisClient.mockResolvedValueOnce(redisClient as never);
 
-    await expect(cacheService.getJson<{ ok: boolean }>('any:key')).resolves.toEqual(
-      { ok: true },
-    );
+    await expect(
+      cacheService.getJson<{ ok: boolean }>('any:key'),
+    ).resolves.toEqual({ ok: true });
     expect(redisClient.get).toHaveBeenCalledWith('any:key');
   });
 

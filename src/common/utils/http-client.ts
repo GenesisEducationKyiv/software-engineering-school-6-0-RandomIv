@@ -5,10 +5,7 @@ type FetchOptions = RequestInit & {
   params?: Record<string, string | number | boolean | null | undefined>;
 };
 
-const buildUrl = (
-  rawUrl: string,
-  params?: FetchOptions['params'],
-): URL => {
+const buildUrl = (rawUrl: string, params?: FetchOptions['params']): URL => {
   const url = new URL(rawUrl);
 
   if (!params) return url;

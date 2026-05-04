@@ -49,7 +49,9 @@ const shutdownGrpcServer = async (): Promise<void> => {
 };
 
 const setupGracefulShutdown = (): void => {
-  const handleShutdownSignal = async (signal: NodeJS.Signals): Promise<void> => {
+  const handleShutdownSignal = async (
+    signal: NodeJS.Signals,
+  ): Promise<void> => {
     if (isShuttingDown) {
       return;
     }
@@ -58,7 +60,7 @@ const setupGracefulShutdown = (): void => {
     console.log(`Received ${signal}. Starting graceful shutdown...`);
 
     if (releaseCheckTask) {
-      releaseCheckTask.stop();
+      void releaseCheckTask.stop();
     }
 
     const forceShutdownTimer = setTimeout(() => {
@@ -104,4 +106,4 @@ const bootstrap = async () => {
   }
 };
 
-bootstrap();
+void bootstrap();

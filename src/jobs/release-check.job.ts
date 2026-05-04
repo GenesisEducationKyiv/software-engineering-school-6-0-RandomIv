@@ -9,9 +9,7 @@ export const initReleaseCheckJob = (): ScheduledTask => {
     await checkReleases();
   });
 
-  console.log(
-    `[Job] Release check initialized (${config.RELEASE_CHECK_CRON})`,
-  );
+  console.log(`[Job] Release check initialized (${config.RELEASE_CHECK_CRON})`);
 
   return task;
 };
