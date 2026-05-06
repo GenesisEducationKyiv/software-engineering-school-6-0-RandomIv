@@ -5,7 +5,12 @@ const eslintConfigPrettier = require('eslint-config-prettier');
 
 module.exports = [
   {
-    ignores: ['node_modules/**', 'dist/**', 'coverage/**', 'src/generated/**'],
+    ignores: [
+      'node_modules/**',
+      'dist/**',
+      'coverage/**',
+      '**/src/generated/**',
+    ],
   },
   {
     linterOptions: {
@@ -14,7 +19,6 @@ module.exports = [
   },
   {
     files: ['**/*.ts'],
-    ignores: ['src/generated/**', '**/src/generated/**'],
     languageOptions: {
       parser: tsParser,
       ecmaVersion: 'latest',
@@ -43,7 +47,6 @@ module.exports = [
   },
   {
     files: ['src/**/*.ts'],
-    ignores: ['src/generated/**', '**/src/generated/**'],
     rules: {
       '@typescript-eslint/no-floating-promises': 'error',
       '@typescript-eslint/no-misused-promises': 'error',
