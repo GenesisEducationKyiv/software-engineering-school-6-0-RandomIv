@@ -4,6 +4,7 @@ import {
   getActiveRepositories,
   updateLastSeenTag,
 } from '../repository/repository.service';
+import { logger } from '../../common/logger/logger';
 import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
 import { RateLimitError } from '../../common/errors';
 
@@ -28,15 +29,15 @@ export const checkReleases = async () => {
           );
         } catch (error) {
           allEmailsSent = false;
-          console.error(
-            `[Scanner] Failed to notify ${sub.email} for ${repo.fullName}:`,
-            error,
+          logger.error(
+            { email: sub.email, repository: repo.fullName, err: error },
+            '[Scanner] Failed to notify subscriber',
           );
         }
       }
 
       if (!allEmailsSent) {
-        console.error(
+        logger.error(
           `[Scanner] Skipping lastSeenTag update for ${repo.fullName} because one or more emails failed.`,
         );
         continue;
@@ -45,13 +46,16 @@ export const checkReleases = async () => {
       await updateLastSeenTag(repo.id, latestTag);
     } catch (error) {
       if (error instanceof RateLimitError) {
-        console.warn(
+        logger.warn(
           '[Scanner] GitHub API rate limit hit. Pausing scanner until next cron cycle.',
         );
         break;
       }
 
-      console.error(`[Scanner] Failed for ${repo.fullName}:`, error);
+      logger.error(
+        { repository: repo.fullName, err: error },
+        '[Scanner] Failed',
+      );
     }
   }
 };

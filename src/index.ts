@@ -3,6 +3,7 @@ import type { ScheduledTask } from 'node-cron';
 import type * as grpc from '@grpc/grpc-js';
 import app from './app';
 import { config } from './config';
+import { logger } from './common/logger/logger';
 import { initReleaseCheckJob } from './jobs/release-check.job';
 import { startGrpcServer } from './modules/grpc/grpc.server';
 
@@ -57,14 +58,14 @@ const setupGracefulShutdown = (): void => {
     }
 
     isShuttingDown = true;
-    console.log(`Received ${signal}. Starting graceful shutdown...`);
+    logger.info(`Received ${signal}. Starting graceful shutdown...`);
 
     if (releaseCheckTask) {
       void releaseCheckTask.stop();
     }
 
     const forceShutdownTimer = setTimeout(() => {
-      console.error('Graceful shutdown timed out. Forcing process exit.');
+      logger.error('Graceful shutdown timed out. Forcing process exit.');
       grpcServer?.forceShutdown();
       process.exit(1);
     }, SHUTDOWN_TIMEOUT_MS);
@@ -74,11 +75,11 @@ const setupGracefulShutdown = (): void => {
     try {
       await Promise.all([shutdownHttpServer(), shutdownGrpcServer()]);
       clearTimeout(forceShutdownTimer);
-      console.log('Graceful shutdown completed.');
+      logger.info('Graceful shutdown completed.');
       process.exit(0);
     } catch (error) {
       clearTimeout(forceShutdownTimer);
-      console.error('Error during graceful shutdown:', error);
+      logger.error({ err: error }, 'Error during graceful shutdown');
       process.exit(1);
     }
   };
@@ -95,13 +96,13 @@ const setupGracefulShutdown = (): void => {
 const bootstrap = async () => {
   try {
     httpServer = app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      logger.info(`Server is running on port ${PORT}`);
     });
     grpcServer = await startGrpcServer();
     releaseCheckTask = initReleaseCheckJob();
     setupGracefulShutdown();
   } catch (error) {
-    console.error('Error starting server:', error);
+    logger.error({ err: error }, 'Error starting server');
     process.exit(1);
   }
 };

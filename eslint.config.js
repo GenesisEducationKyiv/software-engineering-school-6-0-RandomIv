@@ -39,7 +39,7 @@ module.exports = [
         'error',
         { argsIgnorePattern: '^_' },
       ],
-      'no-console': 'off',
+      'no-console': 'warn',
       eqeqeq: ['error', 'always'],
       'no-var': 'error',
       'prefer-const': 'error',

@@ -1,6 +1,7 @@
 import { HttpStatus } from '../../common/constants/http-status.constants';
 import { AppError, RateLimitError } from '../../common/errors';
 import { cacheService } from '../../common/cache/cache.service';
+import { logger } from '../../common/logger/logger';
 import { httpClient } from '../../common/utils/http-client';
 import { config } from '../../config';
 import { getGitHubCacheKey } from './github.cache-keys';
@@ -41,9 +42,9 @@ export const githubHttpClient = async <T>(path: string): Promise<T> => {
           return cachedResponse;
         }
       } catch (cacheError) {
-        console.error(
-          `[GitHub] Failed to read cache for ${cacheKey}:`,
-          cacheError,
+        logger.error(
+          { cacheKey, err: cacheError },
+          '[GitHub] Failed to read cache',
         );
       }
     }
@@ -63,9 +64,9 @@ export const githubHttpClient = async <T>(path: string): Promise<T> => {
           config.GITHUB_CACHE_TTL_SECONDS,
         );
       } catch (cacheError) {
-        console.error(
-          `[GitHub] Failed to write cache for ${cacheKey}:`,
-          cacheError,
+        logger.error(
+          { cacheKey, err: cacheError },
+          '[GitHub] Failed to write cache',
         );
       }
     }
