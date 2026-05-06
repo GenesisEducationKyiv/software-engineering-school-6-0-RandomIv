@@ -1,6 +1,7 @@
 import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
 import type { Subscription } from '../../../../src/generated/prisma/client';
 import { RateLimitError } from '../../../../src/common/errors';
+import { logger } from '../../../../src/common/logger/logger';
 
 jest.mock('../../../../src/modules/github/github.service', () => ({
   getLatestReleaseTag: jest.fn(),
@@ -50,18 +51,15 @@ const createRepository = (
 });
 
 describe('scanner.service', () => {
-  let consoleErrorSpy: jest.SpyInstance;
-  let consoleWarnSpy: jest.SpyInstance;
+  let loggerWarnSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    loggerWarnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
   });
 
   afterEach(() => {
-    consoleErrorSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
+    loggerWarnSpy.mockRestore();
   });
 
   it('does nothing when there are no active repositories', async () => {
@@ -187,7 +185,7 @@ describe('scanner.service', () => {
     expect(mockedGetLatestReleaseTag).toHaveBeenCalledTimes(1);
     expect(mockedSendReleaseEmail).not.toHaveBeenCalled();
     expect(mockedUpdateLastSeenTag).not.toHaveBeenCalled();
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
       '[Scanner] GitHub API rate limit hit. Pausing scanner until next cron cycle.',
     );
   });
