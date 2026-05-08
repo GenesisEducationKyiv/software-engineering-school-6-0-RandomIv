@@ -264,7 +264,43 @@ This keeps the app operational even when Redis is down, with degraded cache effi
 
 ---
 
-## 10. Deployment View
+## 10. Testing Strategy
+
+### Test Pyramid in This Project
+
+- **Unit tests** (`tests/unit/*`) cover core logic in:
+  - subscription service
+  - repository service
+  - GitHub integration helpers/services
+  - scanner behavior
+  - email service
+  - middleware and gRPC handlers
+- **Integration tests** (`tests/integration/*`) cover transport and app wiring:
+  - REST API behavior
+  - app-level API routes
+  - gRPC API behavior
+
+### Tooling and Execution
+
+- Test runner: **Jest** (`ts-jest`).
+- Main command: `npm test` (configured as `jest --runInBand`).
+- Test setup files initialize shared mocks/environment for stable runs.
+
+### What Is Verified
+
+- Request validation and error mapping across transports.
+- API key enforcement for REST and gRPC interfaces.
+- Subscription lifecycle rules (create/confirm/unsubscribe/list).
+- Scanner release-detection logic and `lastSeenTag` update behavior.
+- Cache and external integration boundaries via mocks.
+
+---
+
+## 11. Deployment View
+
+### Current Deployment Environment
+
+Current production deployment runs on a **Google Cloud VM (single instance)** using Docker Compose.
 
 ### Local/Container Deployment
 
@@ -283,7 +319,7 @@ App startup sequence:
 
 ---
 
-## 11. Design Constraints and Tradeoffs
+## 12. Design Constraints and Tradeoffs
 
 ### Current Tradeoffs
 
@@ -297,4 +333,3 @@ App startup sequence:
 - Add distributed job coordination if horizontal scaling becomes required.
 - Introduce durable notification queue for stronger delivery guarantees.
 - Add delivery retry/backoff policy with explicit attempt tracking.
-
