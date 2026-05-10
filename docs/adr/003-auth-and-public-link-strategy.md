@@ -29,7 +29,7 @@ We need:
 ### 3. API key for every endpoint (including email-link actions)
 
 - **Pros:** one uniform protection mechanism.
-- **Cons:** poor UX for end users; impossible to click confirm/unsubscribe from email without exposing secrets.
+- **Cons:** poor UX for end users; technically possible via links, but fundamentally insecure for user-facing confirm/unsubscribe flows because secrets would be exposed to recipients.
 
 ### 4. Split boundary: API key for programmatic APIs + token links for user actions
 
