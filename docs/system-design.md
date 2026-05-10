@@ -187,6 +187,7 @@ sequenceDiagram
                     Scanner->>SMTP: Send release email
                     SMTP-->>Scanner: success/failure
                 end
+                Note over Scanner,SMTP: Sequential delivery is intentional for simplicity and to avoid SMTP overload; queue/parallel fan-out is a future scaling option.
                 alt All emails sent
                     Scanner->>DB: Update last_seen_tag
                 else Any email failed
@@ -324,9 +325,11 @@ App startup sequence:
 ### Current Tradeoffs
 
 1. **In-process scheduler** keeps complexity low, but multi-instance deployments can run duplicate jobs.
-2. **No durable queue** means retries happen on later cron cycles, not via persistent task state.
-3. **Best-effort cache** preserves uptime but does not guarantee cache availability.
-4. **Split auth model** (API key + token links) improves UX and machine security, but increases documentation/testing surface.
+2. **Sequential notification dispatch** is a deliberate simplicity/backpressure tradeoff, but it can increase scan duration for repositories with many subscribers.
+3. **No durable queue** means retries happen on later cron cycles, not via persistent task state.
+4. **At-least-once notification behavior:** if a cycle partially sends emails and `last_seen_tag` is not updated, a later cycle may re-send the same release notification to already-notified subscribers.
+5. **Best-effort cache** preserves uptime but does not guarantee cache availability.
+6. **Split auth model** (API key + token links) improves UX and machine security, but increases documentation/testing surface.
 
 ### Future Evolution Paths
 
