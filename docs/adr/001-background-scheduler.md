@@ -42,8 +42,9 @@ Implementation details in current codebase:
 
 - Scheduler starts at app bootstrap (`initReleaseCheckJob`).
 - Cron expression comes from `RELEASE_CHECK_CRON` (default `*/5 * * * *`).
-- Scanner processes repositories sequentially, sends notifications, and updates `lastSeenTag` only when all emails for that repository succeed.
+- Scanner processes repositories sequentially by design (simplicity and controlled SMTP load), sends notifications, and updates `lastSeenTag` only when all emails for that repository succeed.
 - On GitHub rate-limit errors, scanner stops the current cycle and continues on next cron tick.
+- Delivery semantics are effectively **at-least-once** for release emails: partial send failures (or crash before `lastSeenTag` update) can cause duplicate notifications on a later cycle.
 
 ## Consequences
 
@@ -57,6 +58,7 @@ Implementation details in current codebase:
 
 - **Horizontal scaling risk:** with multiple app instances, each instance can run the same cron job.
 - **No durable queue semantics:** failed work is retried only on subsequent scheduler cycles.
+- **Duplicate notification risk on partial failures:** because `lastSeenTag` is updated only after full success, retries can re-notify already-emailed subscribers.
 - **Limited backpressure controls:** large spikes rely on application-level flow, not broker primitives.
 
 ### Notes
