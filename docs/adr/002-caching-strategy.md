@@ -23,18 +23,18 @@ At the same time, the service must keep working if Redis is unavailable.
 
 ### 2. In-memory per-process cache
 
-- **Pros:** no external dependency, fast local lookups.
-- **Cons:** cache is lost on restart, not shared across instances, no operational control from outside process.
+- **Pros:** no external dependency, fast local lookups, reduces repeated GitHub calls within a single process.
+- **Cons:** cache is lost on restart, not shared across instances (limited global rate-limit savings), no operational control from outside process.
 
 ### 3. Mandatory Redis cache
 
-- **Pros:** shared cache across instances, predictable behavior in distributed deployments.
-- **Cons:** hard runtime dependency; service reliability becomes coupled to Redis availability.
+- **Pros:** shared cache across instances, predictable behavior in distributed deployments, strongest reduction of duplicate GitHub calls and rate-limit pressure when healthy.
+- **Cons:** hard runtime dependency; service reliability becomes coupled to Redis availability, with no degraded mode during Redis outages.
 
 ### 4. Optional Redis cache with graceful fallback
 
-- **Pros:** shared cache when Redis is healthy; service still operates without Redis.
-- **Cons:** behavior differs by environment and during Redis outages (cache hit ratio drops).
+- **Pros:** shared cache when Redis is healthy (reduces GitHub calls/rate-limit usage across instances); service still operates without Redis.
+- **Cons:** behavior differs by environment and during Redis outages (cache hit ratio drops and GitHub rate-limit pressure increases).
 
 ## Decision
 
