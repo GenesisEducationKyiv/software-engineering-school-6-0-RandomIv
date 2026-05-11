@@ -1,16 +1,22 @@
 import cron from 'node-cron';
 import type { ScheduledTask } from 'node-cron';
 import { logger } from '../common/logger/logger';
-import { config } from '../config';
-import { checkReleases } from '../modules/scanner/scanner.service';
+import { ScannerService } from '../modules/scanner/scanner.service';
 
-export const initReleaseCheckJob = (): ScheduledTask => {
-  const task = cron.schedule(config.RELEASE_CHECK_CRON, async () => {
-    logger.info(`[Job] Release check at ${new Date().toISOString()}`);
-    await checkReleases();
-  });
+export class ReleaseCheckJob {
+  constructor(
+    private readonly scannerService: ScannerService,
+    private readonly schedule: string,
+  ) {}
 
-  logger.info(`[Job] Release check initialized (${config.RELEASE_CHECK_CRON})`);
+  start(): ScheduledTask {
+    const task = cron.schedule(this.schedule, async () => {
+      logger.info(`[Job] Release check at ${new Date().toISOString()}`);
+      await this.scannerService.checkReleases();
+    });
 
-  return task;
-};
+    logger.info(`[Job] Release check initialized (${this.schedule})`);
+
+    return task;
+  }
+}

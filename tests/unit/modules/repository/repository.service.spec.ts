@@ -3,12 +3,8 @@ import type {
   Subscription,
 } from '../../../../src/generated/prisma/client';
 import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
+import { PrismaRepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import { prismaMock } from '../../../mocks/prisma.mock';
-import {
-  getActiveRepositories,
-  getOrCreateRepository,
-  updateLastSeenTag,
-} from '../../../../src/modules/repository/repository.service';
 
 const repository: Repository = {
   id: 'repo-1',
@@ -33,13 +29,15 @@ const repositoryWithSubscriptions: RepositoryWithSubscriptions = {
 };
 
 describe('repository.service', () => {
+  const service = new PrismaRepositoryRepository(prismaMock);
+
   describe('getActiveRepositories', () => {
     it('returns repositories with subscriptions and calls prisma with expected query', async () => {
       prismaMock.repository.findMany.mockResolvedValue([
         repositoryWithSubscriptions,
       ]);
 
-      const result = await getActiveRepositories();
+      const result = await service.getActiveRepositories();
 
       expect(result).toEqual([repositoryWithSubscriptions]);
       expect(prismaMock.repository.findMany).toHaveBeenCalledWith({
@@ -52,7 +50,7 @@ describe('repository.service', () => {
       const error = new Error('DB failed');
       prismaMock.repository.findMany.mockRejectedValue(error);
 
-      await expect(getActiveRepositories()).rejects.toThrow(error);
+      await expect(service.getActiveRepositories()).rejects.toThrow(error);
     });
   });
 
@@ -64,7 +62,7 @@ describe('repository.service', () => {
       };
       prismaMock.repository.update.mockResolvedValue(updated);
 
-      const result = await updateLastSeenTag(repository.id, 'v1.2.3');
+      const result = await service.updateLastSeenTag(repository.id, 'v1.2.3');
 
       expect(result).toEqual(updated);
       expect(prismaMock.repository.update).toHaveBeenCalledWith({
@@ -77,9 +75,9 @@ describe('repository.service', () => {
       const error = new Error('Update failed');
       prismaMock.repository.update.mockRejectedValue(error);
 
-      await expect(updateLastSeenTag(repository.id, 'v1.0.0')).rejects.toThrow(
-        error,
-      );
+      await expect(
+        service.updateLastSeenTag(repository.id, 'v1.0.0'),
+      ).rejects.toThrow(error);
     });
   });
 
@@ -87,7 +85,7 @@ describe('repository.service', () => {
     it('upserts repository by fullName', async () => {
       prismaMock.repository.upsert.mockResolvedValue(repository);
 
-      const result = await getOrCreateRepository(repository.fullName);
+      const result = await service.getOrCreateRepository(repository.fullName);
 
       expect(result).toEqual(repository);
       expect(prismaMock.repository.upsert).toHaveBeenCalledWith({
@@ -101,9 +99,9 @@ describe('repository.service', () => {
       const error = new Error('Upsert failed');
       prismaMock.repository.upsert.mockRejectedValue(error);
 
-      await expect(getOrCreateRepository(repository.fullName)).rejects.toThrow(
-        error,
-      );
+      await expect(
+        service.getOrCreateRepository(repository.fullName),
+      ).rejects.toThrow(error);
     });
   });
 });

@@ -1,10 +1,12 @@
 import type { Server as HttpServer } from 'node:http';
 import type { ScheduledTask } from 'node-cron';
 import type * as grpc from '@grpc/grpc-js';
-import app from './app';
+import { createApp } from './app';
 import { config } from './config';
 import { logger } from './common/logger/logger';
-import { initReleaseCheckJob } from './jobs/release-check.job';
+import { createDependencyContainer } from './dependency-container';
+import { ReleaseCheckJob } from './jobs/release-check.job';
+import { createReleaseNotifierGrpcHandlers } from './modules/grpc/grpc.handlers';
 import { startGrpcServer } from './modules/grpc/grpc.server';
 
 const PORT = config.PORT;
@@ -94,11 +96,27 @@ const setupGracefulShutdown = (): void => {
 };
 
 const bootstrap = async (): Promise<void> => {
+  const dependencyContainer = createDependencyContainer();
+  const app = createApp({
+    subscriptionService: dependencyContainer.subscriptionService,
+  });
+
   httpServer = app.listen(PORT, () => {
     logger.info(`Server is running on port ${PORT}`);
   });
-  grpcServer = await startGrpcServer();
-  releaseCheckTask = initReleaseCheckJob();
+
+  grpcServer = await startGrpcServer(
+    createReleaseNotifierGrpcHandlers(
+      dependencyContainer.subscriptionService,
+      config.API_KEY,
+    ),
+  );
+
+  releaseCheckTask = new ReleaseCheckJob(
+    dependencyContainer.scannerService,
+    config.RELEASE_CHECK_CRON,
+  ).start();
+
   setupGracefulShutdown();
 };
 

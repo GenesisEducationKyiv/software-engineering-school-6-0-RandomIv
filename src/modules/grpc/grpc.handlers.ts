@@ -1,12 +1,6 @@
 import type * as grpc from '@grpc/grpc-js';
 import { UnauthorizedError } from '../../common/errors';
-import { config } from '../../config';
-import {
-  confirmSubscription,
-  createSubscription,
-  getSubscriptionsByEmail,
-  unsubscribeByToken,
-} from '../subscription/subscription.service';
+import { SubscriptionService } from '../subscription/subscription.service';
 import {
   subscribeSchema,
   subscriptionsQuerySchema,
@@ -24,8 +18,7 @@ import type {
   UnsubscribeRequest,
 } from './grpc.types';
 
-const SUBSCRIBE_SUCCESS_MESSAGE =
-  'Subscription successful. Confirmation email sent.';
+const SUBSCRIBE_SUCCESS_MESSAGE = 'Subscription successful. Confirmation email sent.';
 const CONFIRM_SUCCESS_MESSAGE = 'Subscription confirmed successfully';
 const UNSUBSCRIBE_SUCCESS_MESSAGE = 'Unsubscribed successfully';
 const API_KEY_METADATA_KEY = 'x-api-key';
@@ -51,68 +44,88 @@ const getApiKeyFromMetadata = (metadata: grpc.Metadata): string | undefined => {
   return typeof raw === 'string' ? raw : undefined;
 };
 
-const ensureAuthorized = (metadata: grpc.Metadata): void => {
-  const providedApiKey = getApiKeyFromMetadata(metadata);
-  if (!providedApiKey || providedApiKey !== config.API_KEY) {
-    throw new UnauthorizedError('Invalid API key');
+export class ReleaseNotifierGrpcHandlerFactory {
+  constructor(
+    private readonly subscriptionService: SubscriptionService,
+    private readonly apiKey: string,
+  ) {}
+
+  createHandlers(): ReleaseNotifierHandlers {
+    const ensureAuthorized = (metadata: grpc.Metadata): void => {
+      const providedApiKey = getApiKeyFromMetadata(metadata);
+      if (!providedApiKey || providedApiKey !== this.apiKey) {
+        throw new UnauthorizedError('Invalid API key');
+      }
+    };
+
+    const subscribe = withUnaryHandler<SubscribeRequest, OperationResponse>(
+      async (call) => {
+        ensureAuthorized(call.metadata);
+        const { email, repo } = subscribeSchema.parse(call.request);
+        await this.subscriptionService.createSubscription({ email, repo });
+
+        return {
+          message: SUBSCRIBE_SUCCESS_MESSAGE,
+        };
+      },
+    );
+
+    const confirm = withUnaryHandler<ConfirmRequest, OperationResponse>(
+      async (call) => {
+        ensureAuthorized(call.metadata);
+        const { token } = tokenParamSchema.parse({ token: call.request.token });
+        await this.subscriptionService.confirmSubscription({ token });
+
+        return {
+          message: CONFIRM_SUCCESS_MESSAGE,
+        };
+      },
+    );
+
+    const unsubscribe = withUnaryHandler<UnsubscribeRequest, OperationResponse>(
+      async (call) => {
+        ensureAuthorized(call.metadata);
+        const { token } = tokenParamSchema.parse({ token: call.request.token });
+        await this.subscriptionService.unsubscribeByToken({ token });
+
+        return {
+          message: UNSUBSCRIBE_SUCCESS_MESSAGE,
+        };
+      },
+    );
+
+    const getSubscriptions = withUnaryHandler<
+      GetSubscriptionsRequest,
+      GetSubscriptionsResponse
+    >(async (call) => {
+      ensureAuthorized(call.metadata);
+
+      const { email } = subscriptionsQuerySchema.parse({
+        email: call.request.email,
+      });
+      const subscriptions =
+        await this.subscriptionService.getSubscriptionsByEmail({ email });
+
+      return {
+        subscriptions: subscriptions.map(toSubscriptionDto),
+      };
+    });
+
+    return {
+      subscribe,
+      confirm,
+      unsubscribe,
+      getSubscriptions,
+    };
   }
-};
+}
 
-const subscribe = withUnaryHandler<SubscribeRequest, OperationResponse>(
-  async (call) => {
-    ensureAuthorized(call.metadata);
-    const { email, repo } = subscribeSchema.parse(call.request);
-    await createSubscription({ email, repo });
-
-    return {
-      message: SUBSCRIBE_SUCCESS_MESSAGE,
-    };
-  },
-);
-
-const confirm = withUnaryHandler<ConfirmRequest, OperationResponse>(
-  async (call) => {
-    ensureAuthorized(call.metadata);
-    const { token } = tokenParamSchema.parse({ token: call.request.token });
-    await confirmSubscription({ token });
-
-    return {
-      message: CONFIRM_SUCCESS_MESSAGE,
-    };
-  },
-);
-
-const unsubscribe = withUnaryHandler<UnsubscribeRequest, OperationResponse>(
-  async (call) => {
-    ensureAuthorized(call.metadata);
-    const { token } = tokenParamSchema.parse({ token: call.request.token });
-    await unsubscribeByToken({ token });
-
-    return {
-      message: UNSUBSCRIBE_SUCCESS_MESSAGE,
-    };
-  },
-);
-
-const getSubscriptions = withUnaryHandler<
-  GetSubscriptionsRequest,
-  GetSubscriptionsResponse
->(async (call) => {
-  ensureAuthorized(call.metadata);
-
-  const { email } = subscriptionsQuerySchema.parse({
-    email: call.request.email,
-  });
-  const subscriptions = await getSubscriptionsByEmail({ email });
-
-  return {
-    subscriptions: subscriptions.map(toSubscriptionDto),
-  };
-});
-
-export const releaseNotifierGrpcHandlers: ReleaseNotifierHandlers = {
-  subscribe,
-  confirm,
-  unsubscribe,
-  getSubscriptions,
+export const createReleaseNotifierGrpcHandlers = (
+  subscriptionService: SubscriptionService,
+  apiKey: string,
+): ReleaseNotifierHandlers => {
+  return new ReleaseNotifierGrpcHandlerFactory(
+    subscriptionService,
+    apiKey,
+  ).createHandlers();
 };

@@ -1,9 +1,6 @@
 import { NextFunction, Request, Response, Router } from 'express';
 import {
-  confirmSubscription,
-  createSubscription,
-  getSubscriptionsByEmail,
-  unsubscribeByToken,
+  SubscriptionService,
 } from './subscription.service';
 import {
   subscribeSchema,
@@ -12,70 +9,89 @@ import {
 } from './subscription.schema';
 import { toSubscriptionDto } from './subscription.mapper';
 
-const controller = Router();
+const SUBSCRIBE_SUCCESS_MESSAGE = 'Subscription successful. Confirmation email sent.';
+const CONFIRM_SUCCESS_MESSAGE = 'Subscription confirmed successfully';
+const UNSUBSCRIBE_SUCCESS_MESSAGE = 'Unsubscribed successfully';
 
-controller.post(
-  '/subscribe',
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { email, repo } = subscribeSchema.parse(req.body);
-      await createSubscription({
-        email,
-        repo,
-      });
+export class SubscriptionApiController {
+  constructor(
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
-      res.json({
-        message: 'Subscription successful. Confirmation email sent.',
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+  buildRouter(): Router {
+    const controller = Router();
 
-controller.get(
-  '/confirm/:token',
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { token } = tokenParamSchema.parse(req.params);
-      await confirmSubscription({ token });
+    controller.post(
+      '/subscribe',
+      async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { email, repo } = subscribeSchema.parse(req.body);
+          await this.subscriptionService.createSubscription({
+            email,
+            repo,
+          });
 
-      res.json({
-        message: 'Subscription confirmed successfully',
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+          res.json({
+            message: SUBSCRIBE_SUCCESS_MESSAGE,
+          });
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
 
-controller.get(
-  '/unsubscribe/:token',
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { token } = tokenParamSchema.parse(req.params);
-      await unsubscribeByToken({ token });
+    controller.get(
+      '/confirm/:token',
+      async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { token } = tokenParamSchema.parse(req.params);
+          await this.subscriptionService.confirmSubscription({ token });
 
-      res.json({
-        message: 'Unsubscribed successfully',
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+          res.json({
+            message: CONFIRM_SUCCESS_MESSAGE,
+          });
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
 
-controller.get(
-  '/subscriptions',
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { email } = subscriptionsQuerySchema.parse(req.query);
-      const subscriptions = await getSubscriptionsByEmail({ email });
-      res.json(subscriptions.map(toSubscriptionDto));
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+    controller.get(
+      '/unsubscribe/:token',
+      async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { token } = tokenParamSchema.parse(req.params);
+          await this.subscriptionService.unsubscribeByToken({ token });
 
-export default controller;
+          res.json({
+            message: UNSUBSCRIBE_SUCCESS_MESSAGE,
+          });
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
+
+    controller.get(
+      '/subscriptions',
+      async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { email } = subscriptionsQuerySchema.parse(req.query);
+          const subscriptions =
+            await this.subscriptionService.getSubscriptionsByEmail({ email });
+          res.json(subscriptions.map(toSubscriptionDto));
+        } catch (error) {
+          next(error);
+        }
+      },
+    );
+
+    return controller;
+  }
+}
+
+export const createSubscriptionApiController = (
+  subscriptionService: SubscriptionService,
+): Router => {
+  return new SubscriptionApiController(subscriptionService).buildRouter();
+};

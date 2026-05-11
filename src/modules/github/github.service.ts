@@ -1,35 +1,43 @@
 import { NotFoundError } from '../../common/errors';
 import { GitHubReleaseResponse, githubReleaseSchema } from './github.schema';
-import { githubHttpClient } from './github.utils';
 
-export const checkRepoExists = async (repository: string): Promise<boolean> => {
-  try {
-    await githubHttpClient<unknown>(repository);
-    return true;
-  } catch (error) {
-    if (error instanceof NotFoundError) {
-      return false;
+type GitHubRequest = <T>(endpoint: string) => Promise<T>;
+
+export interface GitHubService {
+  checkRepoExists(repository: string): Promise<boolean>;
+  getLatestReleaseTag(repository: string): Promise<string | null>;
+}
+
+export class GitHubApiService implements GitHubService {
+  constructor(private readonly request: GitHubRequest) {}
+
+  async checkRepoExists(repository: string): Promise<boolean> {
+    try {
+      await this.request<unknown>(repository);
+      return true;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return false;
+      }
+
+      throw error;
     }
-
-    throw error;
   }
-};
 
-export const getLatestReleaseTag = async (
-  repository: string,
-): Promise<string | null> => {
-  try {
-    const data = await githubHttpClient<GitHubReleaseResponse>(
-      `${repository}/releases/latest`,
-    );
+  async getLatestReleaseTag(repository: string): Promise<string | null> {
+    try {
+      const data = await this.request<GitHubReleaseResponse>(
+        `${repository}/releases/latest`,
+      );
 
-    const parsedData = githubReleaseSchema.parse(data);
-    return parsedData.tag_name;
-  } catch (error) {
-    if (error instanceof NotFoundError) {
-      return null;
+      const parsedData = githubReleaseSchema.parse(data);
+      return parsedData.tag_name;
+    } catch (error) {
+      if (error instanceof NotFoundError) {
+        return null;
+      }
+
+      throw error;
     }
-
-    throw error;
   }
-};
+}

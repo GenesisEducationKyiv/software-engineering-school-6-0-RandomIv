@@ -1,37 +1,33 @@
 import type { SentMessageInfo } from 'nodemailer';
 import { HttpStatus } from '../../../../src/common/constants/http-status.constants';
-
-const sendMailMock = jest.fn();
-const createTransportMock = jest.fn();
-
-const loadEmailService = async () => {
-  jest.resetModules();
-  createTransportMock.mockReturnValue({
-    sendMail: sendMailMock,
-  });
-
-  jest.doMock('nodemailer', () => ({
-    __esModule: true,
-    default: {
-      createTransport: createTransportMock,
-    },
-  }));
-
-  return import('../../../../src/modules/notification/email.service');
-};
+import {
+  EmailService,
+  NodemailerService,
+} from '../../../../src/modules/notification/email.service';
 
 describe('email.service', () => {
+  const sendMailMock = jest.fn();
+
+  const createService = (): EmailService => {
+    return new NodemailerService({
+      emailUser: 'test@example.com',
+      appBaseUrl: 'http://localhost:3000',
+      transporter: {
+        sendMail: sendMailMock,
+      },
+    });
+  };
+
   beforeEach(() => {
     sendMailMock.mockReset();
-    createTransportMock.mockReset();
   });
 
   it('sends release email and returns nodemailer result', async () => {
     const info = { messageId: 'message-1' } as SentMessageInfo;
-
-    const { sendReleaseEmail } = await loadEmailService();
+    const service = createService();
     sendMailMock.mockResolvedValueOnce(info);
-    const result = await sendReleaseEmail(
+
+    const result = await service.sendReleaseEmail(
       'user@example.com',
       'owner/repo',
       'v1.0.0',
@@ -39,13 +35,6 @@ describe('email.service', () => {
     );
 
     expect(result).toEqual(info);
-    expect(createTransportMock).toHaveBeenCalledWith({
-      service: 'gmail',
-      auth: {
-        user: 'test@example.com',
-        pass: 'test-password',
-      },
-    });
     expect(sendMailMock).toHaveBeenCalledWith(
       expect.objectContaining({
         to: 'user@example.com',
@@ -56,10 +45,10 @@ describe('email.service', () => {
 
   it('sends confirmation email and returns nodemailer result', async () => {
     const info = { messageId: 'message-2' } as SentMessageInfo;
-
-    const { sendSubscriptionConfirmationEmail } = await loadEmailService();
+    const service = createService();
     sendMailMock.mockResolvedValueOnce(info);
-    const result = await sendSubscriptionConfirmationEmail(
+
+    const result = await service.sendSubscriptionConfirmationEmail(
       'user@example.com',
       'owner/repo',
       'e4e12272-a4c3-4bcf-bf93-dce310adb871',
@@ -75,12 +64,12 @@ describe('email.service', () => {
     );
   });
 
-  it('throws AppError(500) when nodemailer fails', async () => {
-    const { sendReleaseEmail } = await loadEmailService();
+  it('throws AppError(500) when mail sender fails', async () => {
+    const service = createService();
     sendMailMock.mockRejectedValueOnce(new Error('SMTP unavailable'));
 
     await expect(
-      sendReleaseEmail(
+      service.sendReleaseEmail(
         'user@example.com',
         'owner/repo',
         'v1.0.0',
@@ -93,11 +82,11 @@ describe('email.service', () => {
   });
 
   it('handles non-Error thrown values with Unknown error message', async () => {
-    const { sendSubscriptionConfirmationEmail } = await loadEmailService();
+    const service = createService();
     sendMailMock.mockRejectedValueOnce('bad value');
 
     await expect(
-      sendSubscriptionConfirmationEmail(
+      service.sendSubscriptionConfirmationEmail(
         'user@example.com',
         'owner/repo',
         'e4e12272-a4c3-4bcf-bf93-dce310adb871',

@@ -1,66 +1,78 @@
 import { NextFunction, Request, Response, Router } from 'express';
-import {
-  confirmSubscription,
-  createSubscription,
-  unsubscribeByToken,
-} from './subscription.service';
+import { SubscriptionService } from './subscription.service';
 import { subscribeSchema, tokenParamSchema } from './subscription.schema';
 import { webSubscribeLimiter } from '../../common/middlewares/rate-limit.middleware';
 import { renderHtmlMessage } from '../../common/views/html.template';
 import { sendWebError } from '../../common/utils/web-error.util';
 
-const webController = Router();
+const SUBSCRIBE_SUCCESS_MESSAGE = 'Subscription successful. Confirmation email sent.';
 
-webController.post(
-  '/subscribe',
-  webSubscribeLimiter,
-  async (req: Request, res: Response, next: NextFunction) => {
-    try {
-      const { email, repo } = subscribeSchema.parse(req.body);
-      await createSubscription({ email, repo });
+export class SubscriptionWebController {
+  constructor(
+    private readonly subscriptionService: SubscriptionService,
+  ) {}
 
-      res.json({
-        message: 'Subscription successful. Confirmation email sent.',
-      });
-    } catch (error) {
-      next(error);
-    }
-  },
-);
+  buildRouter(): Router {
+    const webController = Router();
 
-webController.get('/confirm/:token', async (req: Request, res: Response) => {
-  try {
-    const { token } = tokenParamSchema.parse(req.params);
-    await confirmSubscription({ token });
+    webController.post(
+      '/subscribe',
+      webSubscribeLimiter,
+      async (req: Request, res: Response, next: NextFunction) => {
+        try {
+          const { email, repo } = subscribeSchema.parse(req.body);
+          await this.subscriptionService.createSubscription({ email, repo });
 
-    res.send(
-      renderHtmlMessage(
-        'Confirmed',
-        'Your subscription has been confirmed successfully.',
-      ),
+          res.json({
+            message: SUBSCRIBE_SUCCESS_MESSAGE,
+          });
+        } catch (error) {
+          next(error);
+        }
+      },
     );
-  } catch (error) {
-    sendWebError(res, error);
+
+    webController.get('/confirm/:token', async (req: Request, res: Response) => {
+      try {
+        const { token } = tokenParamSchema.parse(req.params);
+        await this.subscriptionService.confirmSubscription({ token });
+
+        res.send(
+          renderHtmlMessage(
+            'Confirmed',
+            'Your subscription has been confirmed successfully.',
+          ),
+        );
+      } catch (error) {
+        sendWebError(res, error);
+      }
+    });
+
+    webController.get(
+      '/unsubscribe/:token',
+      async (req: Request, res: Response) => {
+        try {
+          const { token } = tokenParamSchema.parse(req.params);
+          await this.subscriptionService.unsubscribeByToken({ token });
+
+          res.send(
+            renderHtmlMessage(
+              'Unsubscribed',
+              'You have been successfully unsubscribed.',
+            ),
+          );
+        } catch (error) {
+          sendWebError(res, error);
+        }
+      },
+    );
+
+    return webController;
   }
-});
+}
 
-webController.get(
-  '/unsubscribe/:token',
-  async (req: Request, res: Response) => {
-    try {
-      const { token } = tokenParamSchema.parse(req.params);
-      await unsubscribeByToken({ token });
-
-      res.send(
-        renderHtmlMessage(
-          'Unsubscribed',
-          'You have been successfully unsubscribed.',
-        ),
-      );
-    } catch (error) {
-      sendWebError(res, error);
-    }
-  },
-);
-
-export default webController;
+export const createSubscriptionWebController = (
+  subscriptionService: SubscriptionService,
+): Router => {
+  return new SubscriptionWebController(subscriptionService).buildRouter();
+};

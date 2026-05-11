@@ -2,6 +2,7 @@ import { createServer } from 'node:net';
 import path from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
+import type { SubscriptionService } from '../../src/modules/subscription/subscription.service';
 
 const PROTO_PATH = path.resolve(process.cwd(), 'proto/release_notifier.proto');
 
@@ -52,10 +53,7 @@ const callUnary = <TResponse>(
     Reflect.apply(method, client, [
       request,
       metadata,
-      (
-        error: grpc.ServiceError | null,
-        response: TResponse | null | undefined,
-      ) => {
+      (error: grpc.ServiceError | null, response: TResponse | null | undefined) => {
         resolve({ error, response });
       },
     ]);
@@ -72,9 +70,20 @@ describe('gRPC integration', () => {
     process.env.GRPC_PORT = String(grpcPort);
 
     jest.resetModules();
-    const { startGrpcServer } =
-      await import('../../src/modules/grpc/grpc.server');
-    grpcServer = await startGrpcServer();
+    const [{ startGrpcServer }, { createReleaseNotifierGrpcHandlers }] =
+      await Promise.all([
+        import('../../src/modules/grpc/grpc.server'),
+        import('../../src/modules/grpc/grpc.handlers'),
+      ]);
+    const subscriptionService: SubscriptionService = {
+      createSubscription: jest.fn(),
+      confirmSubscription: jest.fn(),
+      unsubscribeByToken: jest.fn(),
+      getSubscriptionsByEmail: jest.fn(),
+    };
+    grpcServer = await startGrpcServer(
+      createReleaseNotifierGrpcHandlers(subscriptionService, 'test-api-key'),
+    );
 
     const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
       keepCase: true,
@@ -83,13 +92,10 @@ describe('gRPC integration', () => {
       defaults: true,
       oneofs: true,
     });
-    const grpcObject = grpc.loadPackageDefinition(
-      packageDefinition,
-    ) as grpc.GrpcObject;
-    const releaseNotifierPackage =
-      grpcObject.release_notifier as grpc.GrpcObject;
-    const ClientConstructor =
-      releaseNotifierPackage.ReleaseNotifier as grpc.ServiceClientConstructor;
+    const grpcObject = grpc.loadPackageDefinition(packageDefinition) as grpc.GrpcObject;
+    const releaseNotifierPackage = grpcObject.release_notifier as grpc.GrpcObject;
+    const ClientConstructor = releaseNotifierPackage
+      .ReleaseNotifier as grpc.ServiceClientConstructor;
 
     grpcClient = new ClientConstructor(
       `127.0.0.1:${grpcPort}`,

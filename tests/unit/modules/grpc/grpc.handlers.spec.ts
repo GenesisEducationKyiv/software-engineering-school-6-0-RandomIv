@@ -1,20 +1,6 @@
 import * as grpc from '@grpc/grpc-js';
 import { ConflictError } from '../../../../src/common/errors';
-
-jest.mock('../../../../src/modules/subscription/subscription.service', () => ({
-  createSubscription: jest.fn(),
-  confirmSubscription: jest.fn(),
-  unsubscribeByToken: jest.fn(),
-  getSubscriptionsByEmail: jest.fn(),
-}));
-
-import {
-  confirmSubscription,
-  createSubscription,
-  getSubscriptionsByEmail,
-  unsubscribeByToken,
-} from '../../../../src/modules/subscription/subscription.service';
-import { releaseNotifierGrpcHandlers } from '../../../../src/modules/grpc/grpc.handlers';
+import { createReleaseNotifierGrpcHandlers } from '../../../../src/modules/grpc/grpc.handlers';
 import type {
   ConfirmRequest,
   GetSubscriptionsRequest,
@@ -23,11 +9,8 @@ import type {
   SubscribeRequest,
   UnsubscribeRequest,
 } from '../../../../src/modules/grpc/grpc.types';
+import type { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
 
-const mockedCreateSubscription = jest.mocked(createSubscription);
-const mockedConfirmSubscription = jest.mocked(confirmSubscription);
-const mockedUnsubscribeByToken = jest.mocked(unsubscribeByToken);
-const mockedGetSubscriptionsByEmail = jest.mocked(getSubscriptionsByEmail);
 const TEST_API_KEY = 'test-api-key';
 
 const invokeUnary = <TReq, TRes>(
@@ -47,6 +30,18 @@ const invokeUnary = <TReq, TRes>(
 };
 
 describe('grpc.handlers', () => {
+  const subscriptionService: SubscriptionService = {
+    createSubscription: jest.fn(),
+    confirmSubscription: jest.fn(),
+    unsubscribeByToken: jest.fn(),
+    getSubscriptionsByEmail: jest.fn(),
+  };
+
+  const handlers = createReleaseNotifierGrpcHandlers(
+    subscriptionService,
+    TEST_API_KEY,
+  );
+
   const withApiKey = (): grpc.Metadata => {
     const metadata = new grpc.Metadata();
     metadata.set('x-api-key', TEST_API_KEY);
@@ -59,7 +54,7 @@ describe('grpc.handlers', () => {
 
   it('subscribe requires API key metadata', async () => {
     const result = await invokeUnary<SubscribeRequest, OperationResponse>(
-      releaseNotifierGrpcHandlers.subscribe,
+      handlers.subscribe,
       {
         email: 'user@example.com',
         repo: 'owner/repo',
@@ -67,14 +62,18 @@ describe('grpc.handlers', () => {
     );
 
     expect(result.error?.code).toBe(grpc.status.UNAUTHENTICATED);
-    expect(mockedCreateSubscription).not.toHaveBeenCalled();
+    expect(subscriptionService.createSubscription).not.toHaveBeenCalled();
   });
 
   it('subscribe returns success message', async () => {
-    mockedCreateSubscription.mockResolvedValue({} as never);
+    (
+      subscriptionService.createSubscription as jest.MockedFunction<
+        SubscriptionService['createSubscription']
+      >
+    ).mockResolvedValue({} as never);
 
     const result = await invokeUnary<SubscribeRequest, OperationResponse>(
-      releaseNotifierGrpcHandlers.subscribe,
+      handlers.subscribe,
       {
         email: 'user@example.com',
         repo: ' owner/repo ',
@@ -86,19 +85,23 @@ describe('grpc.handlers', () => {
     expect(result.response).toEqual({
       message: 'Subscription successful. Confirmation email sent.',
     });
-    expect(mockedCreateSubscription).toHaveBeenCalledWith({
+    expect(subscriptionService.createSubscription).toHaveBeenCalledWith({
       email: 'user@example.com',
       repo: 'owner/repo',
     });
   });
 
   it('subscribe maps service conflict to ALREADY_EXISTS', async () => {
-    mockedCreateSubscription.mockRejectedValueOnce(
+    (
+      subscriptionService.createSubscription as jest.MockedFunction<
+        SubscriptionService['createSubscription']
+      >
+    ).mockRejectedValueOnce(
       new ConflictError('Email already subscribed to this repository'),
     );
 
     const result = await invokeUnary<SubscribeRequest, OperationResponse>(
-      releaseNotifierGrpcHandlers.subscribe,
+      handlers.subscribe,
       {
         email: 'user@example.com',
         repo: 'owner/repo',
@@ -111,7 +114,7 @@ describe('grpc.handlers', () => {
 
   it('confirm validates token as UUID', async () => {
     const result = await invokeUnary<ConfirmRequest, OperationResponse>(
-      releaseNotifierGrpcHandlers.confirm,
+      handlers.confirm,
       {
         token: 'not-a-uuid',
       },
@@ -119,14 +122,18 @@ describe('grpc.handlers', () => {
     );
 
     expect(result.error?.code).toBe(grpc.status.INVALID_ARGUMENT);
-    expect(mockedConfirmSubscription).not.toHaveBeenCalled();
+    expect(subscriptionService.confirmSubscription).not.toHaveBeenCalled();
   });
 
   it('unsubscribe returns success message', async () => {
-    mockedUnsubscribeByToken.mockResolvedValueOnce();
+    (
+      subscriptionService.unsubscribeByToken as jest.MockedFunction<
+        SubscriptionService['unsubscribeByToken']
+      >
+    ).mockResolvedValueOnce();
 
     const result = await invokeUnary<UnsubscribeRequest, OperationResponse>(
-      releaseNotifierGrpcHandlers.unsubscribe,
+      handlers.unsubscribe,
       {
         token: '8c917f35-99a6-44d3-b200-e36dcf346f2e',
       },
@@ -143,16 +150,20 @@ describe('grpc.handlers', () => {
     const result = await invokeUnary<
       GetSubscriptionsRequest,
       GetSubscriptionsResponse
-    >(releaseNotifierGrpcHandlers.getSubscriptions, {
+    >(handlers.getSubscriptions, {
       email: 'user@example.com',
     });
 
     expect(result.error?.code).toBe(grpc.status.UNAUTHENTICATED);
-    expect(mockedGetSubscriptionsByEmail).not.toHaveBeenCalled();
+    expect(subscriptionService.getSubscriptionsByEmail).not.toHaveBeenCalled();
   });
 
   it('getSubscriptions returns mapped subscriptions for authorized request', async () => {
-    mockedGetSubscriptionsByEmail.mockResolvedValueOnce([
+    (
+      subscriptionService.getSubscriptionsByEmail as jest.MockedFunction<
+        SubscriptionService['getSubscriptionsByEmail']
+      >
+    ).mockResolvedValueOnce([
       {
         id: 'sub-1',
         email: 'user@example.com',
@@ -174,7 +185,7 @@ describe('grpc.handlers', () => {
       GetSubscriptionsRequest,
       GetSubscriptionsResponse
     >(
-      releaseNotifierGrpcHandlers.getSubscriptions,
+      handlers.getSubscriptions,
       {
         email: 'user@example.com',
       },
