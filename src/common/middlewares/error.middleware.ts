@@ -167,7 +167,7 @@ export const errorHandler = (
   req: Request,
   res: Response,
   _next: NextFunction,
-) => {
+): Response | void => {
   logger.error(`[Error] ${getErrorName(err)}: ${getErrorMessage(err)}`);
 
   if (err instanceof ZodError) {

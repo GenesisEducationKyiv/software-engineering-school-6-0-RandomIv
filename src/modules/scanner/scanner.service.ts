@@ -8,7 +8,7 @@ import { logger } from '../../common/logger/logger';
 import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
 import { RateLimitError } from '../../common/errors';
 
-export const checkReleases = async () => {
+export const checkReleases = async (): Promise<void> => {
   const repositories: RepositoryWithSubscriptions[] =
     await getActiveRepositories();
 

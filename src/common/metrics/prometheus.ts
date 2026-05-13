@@ -75,7 +75,7 @@ export const prometheusMetricsMiddleware = (
   const stopTimer = requestDurationHistogram.startTimer();
 
   res.on('finish', () => {
-    const routePath = req.route?.path;
+    const routePath = (req.route as { path?: unknown } | undefined)?.path;
     const route =
       typeof routePath === 'string'
         ? `${req.baseUrl.replace(/\/+$/, '')}${routePath}`
