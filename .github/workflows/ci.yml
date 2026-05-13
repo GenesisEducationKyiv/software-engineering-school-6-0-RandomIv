@@ -29,11 +29,11 @@ jobs:
       - name: Prepare test env file
         run: cp .env.test .env
 
-      - name: Lint
-        run: npm run lint
-
       - name: Generate Prisma client
         run: npm run db:generate
+
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build
