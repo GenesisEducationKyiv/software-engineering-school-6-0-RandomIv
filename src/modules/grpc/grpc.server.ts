@@ -1,9 +1,13 @@
 import path from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
+import { logger } from '../../common/logger/logger';
 import { config } from '../../config';
 import { releaseNotifierGrpcHandlers } from './grpc.handlers';
-import type { LoadedGrpcObject, ReleaseNotifierGrpcPackage } from './grpc.types';
+import type {
+  LoadedGrpcObject,
+  ReleaseNotifierGrpcPackage,
+} from './grpc.types';
 
 const PROTO_PATH = path.resolve(process.cwd(), 'proto/release_notifier.proto');
 
@@ -16,13 +20,18 @@ const PROTO_LOADER_OPTIONS: protoLoader.Options = {
 };
 
 const loadReleaseNotifierPackage = (): ReleaseNotifierGrpcPackage => {
-  const packageDefinition = protoLoader.loadSync(PROTO_PATH, PROTO_LOADER_OPTIONS);
+  const packageDefinition = protoLoader.loadSync(
+    PROTO_PATH,
+    PROTO_LOADER_OPTIONS,
+  );
   const grpcObject = grpc.loadPackageDefinition(
     packageDefinition,
   ) as LoadedGrpcObject;
 
   if (!grpcObject.release_notifier?.ReleaseNotifier?.service) {
-    throw new Error('Failed to load gRPC package release_notifier.ReleaseNotifier');
+    throw new Error(
+      'Failed to load gRPC package release_notifier.ReleaseNotifier',
+    );
   }
 
   return grpcObject.release_notifier as unknown as ReleaseNotifierGrpcPackage;
@@ -49,7 +58,7 @@ export const startGrpcServer = async (): Promise<grpc.Server> => {
           return;
         }
 
-        console.log(`gRPC server is running on ${config.GRPC_HOST}:${port}`);
+        logger.info(`gRPC server is running on ${config.GRPC_HOST}:${port}`);
         resolve();
       },
     );

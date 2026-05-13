@@ -1,5 +1,9 @@
 import { HttpStatus } from '../../../src/common/constants/http-status.constants';
-import { AppError, NotFoundError, RateLimitError } from '../../../src/common/errors';
+import {
+  AppError,
+  NotFoundError,
+  RateLimitError,
+} from '../../../src/common/errors';
 import { httpClient } from '../../../src/common/utils/http-client';
 
 describe('http-client', () => {
@@ -40,17 +44,23 @@ describe('http-client', () => {
   it('throws RateLimitError for 429', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('Too many', { status: 429 }));
 
-    await expect(httpClient('https://example.com')).rejects.toThrow(RateLimitError);
+    await expect(httpClient('https://example.com')).rejects.toThrow(
+      RateLimitError,
+    );
   });
 
   it('throws NotFoundError for 404', async () => {
     fetchSpy.mockResolvedValueOnce(new Response('Not found', { status: 404 }));
 
-    await expect(httpClient('https://example.com')).rejects.toThrow(NotFoundError);
+    await expect(httpClient('https://example.com')).rejects.toThrow(
+      NotFoundError,
+    );
   });
 
   it('throws AppError with response text for non-OK status', async () => {
-    fetchSpy.mockResolvedValueOnce(new Response('Gateway failed', { status: 502 }));
+    fetchSpy.mockResolvedValueOnce(
+      new Response('Gateway failed', { status: 502 }),
+    );
 
     await expect(httpClient('https://example.com')).rejects.toMatchObject({
       statusCode: 502,
@@ -96,7 +106,9 @@ describe('http-client', () => {
       }),
     );
 
-    const result = await httpClient<{ tag_name: string }>('https://example.com');
+    const result = await httpClient<{ tag_name: string }>(
+      'https://example.com',
+    );
 
     expect(result).toEqual({ tag_name: 'v1.0.0' });
   });

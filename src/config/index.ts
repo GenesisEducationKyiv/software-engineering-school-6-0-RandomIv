@@ -8,6 +8,7 @@ import { databaseSchema } from './database.config';
 import { emailSchema } from './email.config';
 import { grpcSchema } from './grpc.config';
 import { githubSchema } from './github.config';
+import { logger } from '../common/logger/logger';
 
 const schema = appSchema
   .extend(authSchema.shape)
@@ -21,9 +22,8 @@ const schema = appSchema
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
-  console.error('Invalid or missing environment variables:');
-
-  console.error(JSON.stringify(z.treeifyError(parsed.error), null, 2));
+  logger.error('Invalid or missing environment variables');
+  logger.error({ validationError: z.treeifyError(parsed.error) });
 
   process.exit(1);
 }

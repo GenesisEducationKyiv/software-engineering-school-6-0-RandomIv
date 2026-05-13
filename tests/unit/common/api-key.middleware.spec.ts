@@ -1,6 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import { UnauthorizedError } from '../../../src/common/errors';
-import { API_KEY_HEADER, requireApiKey } from '../../../src/common/middlewares/api-key.middleware';
+import {
+  API_KEY_HEADER,
+  requireApiKey,
+} from '../../../src/common/middlewares/api-key.middleware';
 
 describe('api-key.middleware', () => {
   const res = {} as Response;

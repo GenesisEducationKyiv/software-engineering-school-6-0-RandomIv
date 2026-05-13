@@ -3,10 +3,7 @@ import {
   type Repository,
   type Subscription,
 } from '../../../../src/generated/prisma/client';
-import {
-  ConflictError,
-  NotFoundError,
-} from '../../../../src/common/errors';
+import { ConflictError, NotFoundError } from '../../../../src/common/errors';
 import { prismaMock } from '../../../mocks/prisma.mock';
 
 jest.mock('../../../../src/modules/github/github.service', () => ({

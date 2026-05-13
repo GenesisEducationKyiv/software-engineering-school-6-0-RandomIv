@@ -1,5 +1,6 @@
 import { createClient, type RedisClientType } from 'redis';
 import { config } from '../../config';
+import { logger } from '../logger/logger';
 
 let redisClient: RedisClientType | null = null;
 let redisConnectPromise: Promise<RedisClientType | null> | null = null;
@@ -30,15 +31,15 @@ export const getRedisClient = async (): Promise<RedisClientType | null> => {
       reconnectStrategy: () => false,
     },
   });
-  redisClient.on('error', (error) => {
-    console.error('[Redis] Client error:', error);
+  redisClient.on('error', (error: Error) => {
+    logger.error({ err: error }, '[Redis] Client error');
   });
 
   redisConnectPromise = redisClient
     .connect()
     .then(() => redisClient)
     .catch((error: unknown) => {
-      console.error('[Redis] Failed to connect:', error);
+      logger.error({ err: error }, '[Redis] Failed to connect');
       redisDisabledUntil = Date.now() + REDIS_CONNECT_COOLDOWN_MS;
       redisClient = null;
       return null;

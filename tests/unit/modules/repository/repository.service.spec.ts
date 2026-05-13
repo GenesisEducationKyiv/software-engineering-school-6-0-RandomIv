@@ -1,4 +1,7 @@
-import type { Repository, Subscription } from '../../../../src/generated/prisma/client';
+import type {
+  Repository,
+  Subscription,
+} from '../../../../src/generated/prisma/client';
 import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
 import { prismaMock } from '../../../mocks/prisma.mock';
 import {
@@ -32,7 +35,9 @@ const repositoryWithSubscriptions: RepositoryWithSubscriptions = {
 describe('repository.service', () => {
   describe('getActiveRepositories', () => {
     it('returns repositories with subscriptions and calls prisma with expected query', async () => {
-      prismaMock.repository.findMany.mockResolvedValue([repositoryWithSubscriptions]);
+      prismaMock.repository.findMany.mockResolvedValue([
+        repositoryWithSubscriptions,
+      ]);
 
       const result = await getActiveRepositories();
 

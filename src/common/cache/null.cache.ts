@@ -1,10 +1,10 @@
 import type { CacheService } from './cache.service';
 
 export const nullCache: CacheService = {
-  async getJson<T>(): Promise<T | null> {
-    return null;
+  getJson<T>(): Promise<T | null> {
+    return Promise.resolve(null);
   },
-  async setJson(): Promise<void> {
-    return;
+  setJson(): Promise<void> {
+    return Promise.resolve();
   },
 };

@@ -52,7 +52,10 @@ const callUnary = <TResponse>(
     Reflect.apply(method, client, [
       request,
       metadata,
-      (error: grpc.ServiceError | null, response: TResponse | null | undefined) => {
+      (
+        error: grpc.ServiceError | null,
+        response: TResponse | null | undefined,
+      ) => {
         resolve({ error, response });
       },
     ]);
@@ -69,7 +72,8 @@ describe('gRPC integration', () => {
     process.env.GRPC_PORT = String(grpcPort);
 
     jest.resetModules();
-    const { startGrpcServer } = await import('../../src/modules/grpc/grpc.server');
+    const { startGrpcServer } =
+      await import('../../src/modules/grpc/grpc.server');
     grpcServer = await startGrpcServer();
 
     const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
@@ -79,10 +83,13 @@ describe('gRPC integration', () => {
       defaults: true,
       oneofs: true,
     });
-    const grpcObject = grpc.loadPackageDefinition(packageDefinition) as grpc.GrpcObject;
-    const releaseNotifierPackage = grpcObject.release_notifier as grpc.GrpcObject;
-    const ClientConstructor = releaseNotifierPackage
-      .ReleaseNotifier as grpc.ServiceClientConstructor;
+    const grpcObject = grpc.loadPackageDefinition(
+      packageDefinition,
+    ) as grpc.GrpcObject;
+    const releaseNotifierPackage =
+      grpcObject.release_notifier as grpc.GrpcObject;
+    const ClientConstructor =
+      releaseNotifierPackage.ReleaseNotifier as grpc.ServiceClientConstructor;
 
     grpcClient = new ClientConstructor(
       `127.0.0.1:${grpcPort}`,
