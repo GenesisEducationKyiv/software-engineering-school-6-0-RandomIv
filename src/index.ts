@@ -93,18 +93,16 @@ const setupGracefulShutdown = (): void => {
   });
 };
 
-const bootstrap = async () => {
-  try {
-    httpServer = app.listen(PORT, () => {
-      logger.info(`Server is running on port ${PORT}`);
-    });
-    grpcServer = await startGrpcServer();
-    releaseCheckTask = initReleaseCheckJob();
-    setupGracefulShutdown();
-  } catch (error) {
-    logger.error({ err: error }, 'Error starting server');
-    process.exit(1);
-  }
+const bootstrap = async (): Promise<void> => {
+  httpServer = app.listen(PORT, () => {
+    logger.info(`Server is running on port ${PORT}`);
+  });
+  grpcServer = await startGrpcServer();
+  releaseCheckTask = initReleaseCheckJob();
+  setupGracefulShutdown();
 };
 
-void bootstrap();
+bootstrap().catch((error: unknown) => {
+  logger.error({ err: error }, 'Error starting server');
+  process.exit(1);
+});

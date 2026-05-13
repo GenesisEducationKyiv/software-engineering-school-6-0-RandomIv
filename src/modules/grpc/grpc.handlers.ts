@@ -36,14 +36,13 @@ const withUnaryHandler = <TRequest, TResponse>(
   ) => Promise<TResponse>,
 ): grpc.handleUnaryCall<TRequest, TResponse> => {
   return (call, callback) => {
-    void (async () => {
-      try {
-        const result = await handler(call);
+    handler(call)
+      .then((result) => {
         callback(null, result);
-      } catch (error) {
+      })
+      .catch((error: unknown) => {
         callback(toGrpcServiceError(error));
-      }
-    })();
+      });
   };
 };
 

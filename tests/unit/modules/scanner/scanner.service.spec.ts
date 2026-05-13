@@ -55,7 +55,7 @@ describe('scanner.service', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    loggerWarnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => logger);
+    loggerWarnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
