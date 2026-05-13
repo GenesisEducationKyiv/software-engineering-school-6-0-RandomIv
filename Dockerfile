@@ -9,7 +9,7 @@ RUN apt-get update \
 FROM base AS deps
 ENV NODE_ENV=development
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM deps AS build
 ARG PRISMA_GENERATE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/github_notifier
@@ -24,7 +24,7 @@ RUN DATABASE_URL=$PRISMA_GENERATE_DATABASE_URL npm run db:generate && npm run bu
 FROM base AS production-deps
 ENV NODE_ENV=production
 COPY package.json package-lock.json ./
-RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev --legacy-peer-deps
+RUN --mount=type=cache,target=/root/.npm npm ci --omit=dev
 
 FROM base AS runtime
 ENV NODE_ENV=production

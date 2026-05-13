@@ -105,7 +105,7 @@ docker compose up -d postgres redis
 
 2. Install packages:
 ```bash
-npm ci --legacy-peer-deps
+npm ci
 ```
 
 3. Prepare env:

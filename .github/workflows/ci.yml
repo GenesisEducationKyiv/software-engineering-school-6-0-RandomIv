@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
+    branches: ["main"]
   pull_request:
+    branches: ["main"]
 
 permissions:
   contents: read
@@ -22,14 +24,15 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci --legacy-peer-deps
+        run: npm ci
+
+      - name: Prepare test env file
+        run: cp .env.test .env
 
       - name: Lint
         run: npm run lint
 
       - name: Generate Prisma client
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/github_notifier
         run: npm run db:generate
 
       - name: Build
