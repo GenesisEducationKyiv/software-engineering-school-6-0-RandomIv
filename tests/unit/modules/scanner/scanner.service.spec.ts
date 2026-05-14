@@ -1,7 +1,11 @@
+import { logger } from '../../../../src/common/logger/logger';
 import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
 import type { Subscription } from '../../../../src/generated/prisma/client';
 import { RateLimitError } from '../../../../src/common/errors';
-import { ReleaseScannerService } from '../../../../src/modules/scanner/scanner.service';
+import {
+  ReleaseScannerService,
+  ScannerService,
+} from '../../../../src/modules/scanner/scanner.service';
 
 const createSubscription = (id: string, email: string): Subscription => ({
   id,
@@ -35,24 +39,26 @@ describe('scanner.service', () => {
   const emailService = {
     sendReleaseEmail: jest.fn(),
   };
+
   const service = new ReleaseScannerService({
     repositoryService,
     githubService,
     emailService,
   });
 
-  let consoleErrorSpy: jest.SpyInstance;
-  let consoleWarnSpy: jest.SpyInstance;
+  let loggerErrorSpy: jest.SpyInstance;
+  let loggerWarnSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-    consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    // Шпигуємо за методами нашого професійного логера
+    loggerErrorSpy = jest.spyOn(logger, 'error').mockImplementation();
+    loggerWarnSpy = jest.spyOn(logger, 'warn').mockImplementation();
   });
 
   afterEach(() => {
-    consoleErrorSpy.mockRestore();
-    consoleWarnSpy.mockRestore();
+    loggerErrorSpy.mockRestore();
+    loggerWarnSpy.mockRestore();
   });
 
   it('does nothing when there are no active repositories', async () => {
@@ -66,7 +72,9 @@ describe('scanner.service', () => {
   });
 
   it('skips repository when latest tag is null', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([createRepository()]);
+    repositoryService.getActiveRepositories.mockResolvedValue([
+      createRepository(),
+    ]);
     githubService.getLatestReleaseTag.mockResolvedValueOnce(null);
 
     await service.checkReleases();
@@ -142,6 +150,8 @@ describe('scanner.service', () => {
 
     expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(2);
     expect(repositoryService.updateLastSeenTag).not.toHaveBeenCalled();
+    // Перевіряємо, що помилка залогована в logger.error
+    expect(loggerErrorSpy).toHaveBeenCalled();
   });
 
   it('continues processing next repositories when one repository fails', async () => {
@@ -152,7 +162,9 @@ describe('scanner.service', () => {
     githubService.getLatestReleaseTag
       .mockRejectedValueOnce(new Error('GitHub unavailable'))
       .mockResolvedValueOnce('v3.0.0');
-    emailService.sendReleaseEmail.mockResolvedValue({ messageId: 'ok' } as never);
+    emailService.sendReleaseEmail.mockResolvedValue({
+      messageId: 'ok',
+    } as never);
 
     await service.checkReleases();
 
@@ -168,6 +180,8 @@ describe('scanner.service', () => {
       'repo-2',
       'v3.0.0',
     );
+    // Перевіряємо, що фейл першої репи теж залогований
+    expect(loggerErrorSpy).toHaveBeenCalled();
   });
 
   it('stops current scan cycle when GitHub rate limit is reached', async () => {
@@ -184,7 +198,8 @@ describe('scanner.service', () => {
     expect(githubService.getLatestReleaseTag).toHaveBeenCalledTimes(1);
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
     expect(repositoryService.updateLastSeenTag).not.toHaveBeenCalled();
-    expect(consoleWarnSpy).toHaveBeenCalledWith(
+
+    expect(loggerWarnSpy).toHaveBeenCalledWith(
       '[Scanner] GitHub API rate limit hit. Pausing scanner until next cron cycle.',
     );
   });
