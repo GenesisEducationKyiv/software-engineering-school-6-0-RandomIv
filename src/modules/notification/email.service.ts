@@ -47,17 +47,20 @@ export class NodemailerService implements EmailService {
     const confirmationUrl = this.buildWebUrl(`/confirm/${confirmationToken}`);
     const unsubscribeUrl = this.buildWebUrl(`/unsubscribe/${unsubscribeToken}`);
 
-    const template = confirmationEmailTemplate(repository, confirmationUrl, unsubscribeUrl);
+    const template = confirmationEmailTemplate(
+      repository,
+      confirmationUrl,
+      unsubscribeUrl,
+    );
 
     try {
-      const info = await this.transporter.sendMail({
+      return await this.transporter.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
         subject: `Confirm subscription for ${repository}`,
         text: template.text,
         html: template.html,
       });
-      return info;
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown error';
       throw new AppError(
@@ -76,18 +79,21 @@ export class NodemailerService implements EmailService {
     const releaseUrl = `https://github.com/${repository}/releases/tag/${version}`;
     const unsubscribeUrl = this.buildWebUrl(`/unsubscribe/${unsubscribeToken}`);
 
-    const template = releaseEmailTemplate(repository, version, releaseUrl, unsubscribeUrl);
+    const template = releaseEmailTemplate(
+      repository,
+      version,
+      releaseUrl,
+      unsubscribeUrl,
+    );
 
     try {
-      const info = await this.transporter.sendMail({
+      return await this.transporter.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
         subject: `New release in ${repository}: ${version}`,
         text: template.text,
         html: template.html,
       });
-
-      return info;
     } catch (error) {
       const reason = error instanceof Error ? error.message : 'Unknown error';
       throw new AppError(

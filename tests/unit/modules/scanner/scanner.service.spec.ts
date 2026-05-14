@@ -2,10 +2,7 @@ import { logger } from '../../../../src/common/logger/logger';
 import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
 import type { Subscription } from '../../../../src/generated/prisma/client';
 import { RateLimitError } from '../../../../src/common/errors';
-import {
-  ReleaseScannerService,
-  ScannerService,
-} from '../../../../src/modules/scanner/scanner.service';
+import { ReleaseScannerService } from '../../../../src/modules/scanner/scanner.service';
 
 const createSubscription = (id: string, email: string): Subscription => ({
   id,

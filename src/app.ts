@@ -1,11 +1,7 @@
 import path from 'node:path';
 import express, { Application } from 'express';
-import {
-  createSubscriptionApiController,
-} from './modules/subscription/subscription.api.controller';
-import {
-  createSubscriptionWebController,
-} from './modules/subscription/subscription.web.controller';
+import { createSubscriptionApiController } from './modules/subscription/subscription.api.controller';
+import { createSubscriptionWebController } from './modules/subscription/subscription.web.controller';
 import { errorHandler } from './common/middlewares/error.middleware';
 import { NotFoundError } from './common/errors';
 import {
@@ -20,7 +16,9 @@ export interface AppDependencies {
   subscriptionService: SubscriptionService;
 }
 
-export const createApp = ({ subscriptionService }: AppDependencies): Application => {
+export const createApp = ({
+  subscriptionService,
+}: AppDependencies): Application => {
   const app: Application = express();
   initPrometheusMetrics();
 

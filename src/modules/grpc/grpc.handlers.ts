@@ -18,7 +18,8 @@ import type {
   UnsubscribeRequest,
 } from './grpc.types';
 
-const SUBSCRIBE_SUCCESS_MESSAGE = 'Subscription successful. Confirmation email sent.';
+const SUBSCRIBE_SUCCESS_MESSAGE =
+  'Subscription successful. Confirmation email sent.';
 const CONFIRM_SUCCESS_MESSAGE = 'Subscription confirmed successfully';
 const UNSUBSCRIBE_SUCCESS_MESSAGE = 'Unsubscribed successfully';
 const API_KEY_METADATA_KEY = 'x-api-key';

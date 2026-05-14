@@ -7,14 +7,17 @@ export interface SubscriptionRepository {
     confirmed: boolean;
     repositoryId: string;
   }): Promise<Subscription>;
-  
+
   findByConfirmationToken(token: string): Promise<Subscription | null>;
-  
+
   updateConfirmation(subscriptionId: string): Promise<void>;
-  
+
   deleteByUnsubscribeToken(token: string): Promise<number>;
-  
-  findByEmail(email: string, confirmedOnly?: boolean): Promise<SubscriptionWithRepository[]>;
+
+  findByEmail(
+    email: string,
+    confirmedOnly?: boolean,
+  ): Promise<SubscriptionWithRepository[]>;
 }
 
 export class PrismaSubscriptionRepository implements SubscriptionRepository {
@@ -50,7 +53,10 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
     return result.count;
   }
 
-  async findByEmail(email: string, confirmedOnly = false): Promise<SubscriptionWithRepository[]> {
+  async findByEmail(
+    email: string,
+    confirmedOnly = false,
+  ): Promise<SubscriptionWithRepository[]> {
     return this.prismaClient.subscription.findMany({
       where: {
         email,

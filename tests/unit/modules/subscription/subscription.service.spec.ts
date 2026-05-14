@@ -3,10 +3,7 @@ import {
   type Repository,
   type Subscription,
 } from '../../../../src/generated/prisma/client';
-import {
-  ConflictError,
-  NotFoundError,
-} from '../../../../src/common/errors';
+import { ConflictError, NotFoundError } from '../../../../src/common/errors';
 import { SubscriptionApplicationService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepository } from '../../../../src/modules/subscription/subscription.repository';
 
@@ -60,9 +57,15 @@ describe('subscription.service', () => {
   describe('createSubscription', () => {
     it('creates subscription and sends confirmation email', async () => {
       githubService.checkRepoExists.mockResolvedValue(true);
-      repositoryService.getOrCreateRepository.mockResolvedValue(repositoryRecord);
-      subscriptionRepository.createSubscription.mockResolvedValue(subscriptionRecord);
-      emailService.sendSubscriptionConfirmationEmail.mockResolvedValue({} as never);
+      repositoryService.getOrCreateRepository.mockResolvedValue(
+        repositoryRecord,
+      );
+      subscriptionRepository.createSubscription.mockResolvedValue(
+        subscriptionRecord,
+      );
+      emailService.sendSubscriptionConfirmationEmail.mockResolvedValue(
+        {} as never,
+      );
 
       const result = await service.createSubscription({
         email: 'test@example.com',
@@ -79,7 +82,9 @@ describe('subscription.service', () => {
         confirmed: false,
         repositoryId: repositoryRecord.id,
       });
-      expect(emailService.sendSubscriptionConfirmationEmail).toHaveBeenCalledWith(
+      expect(
+        emailService.sendSubscriptionConfirmationEmail,
+      ).toHaveBeenCalledWith(
         'test@example.com',
         'owner/repo',
         subscriptionRecord.confirmationToken,
@@ -99,12 +104,16 @@ describe('subscription.service', () => {
 
       expect(repositoryService.getOrCreateRepository).not.toHaveBeenCalled();
       expect(subscriptionRepository.createSubscription).not.toHaveBeenCalled();
-      expect(emailService.sendSubscriptionConfirmationEmail).not.toHaveBeenCalled();
+      expect(
+        emailService.sendSubscriptionConfirmationEmail,
+      ).not.toHaveBeenCalled();
     });
 
     it('maps Prisma P2002 to ConflictError', async () => {
       githubService.checkRepoExists.mockResolvedValue(true);
-      repositoryService.getOrCreateRepository.mockResolvedValue(repositoryRecord);
+      repositoryService.getOrCreateRepository.mockResolvedValue(
+        repositoryRecord,
+      );
       subscriptionRepository.createSubscription.mockRejectedValue(
         new Prisma.PrismaClientKnownRequestError(
           'Unique constraint failed on the fields: (`email`,`repository_id`)',
@@ -129,10 +138,16 @@ describe('subscription.service', () => {
 
     it('propagates confirmation email errors', async () => {
       githubService.checkRepoExists.mockResolvedValue(true);
-      repositoryService.getOrCreateRepository.mockResolvedValue(repositoryRecord);
-      subscriptionRepository.createSubscription.mockResolvedValue(subscriptionRecord);
+      repositoryService.getOrCreateRepository.mockResolvedValue(
+        repositoryRecord,
+      );
+      subscriptionRepository.createSubscription.mockResolvedValue(
+        subscriptionRecord,
+      );
       const emailError = new Error('SMTP down');
-      emailService.sendSubscriptionConfirmationEmail.mockRejectedValue(emailError);
+      emailService.sendSubscriptionConfirmationEmail.mockRejectedValue(
+        emailError,
+      );
       subscriptionRepository.deleteByUnsubscribeToken.mockResolvedValue(1);
 
       await expect(
@@ -142,9 +157,9 @@ describe('subscription.service', () => {
         }),
       ).rejects.toThrow(emailError);
 
-      expect(subscriptionRepository.deleteByUnsubscribeToken).toHaveBeenCalledWith(
-        subscriptionRecord.unsubscribeToken,
-      );
+      expect(
+        subscriptionRepository.deleteByUnsubscribeToken,
+      ).toHaveBeenCalledWith(subscriptionRecord.unsubscribeToken);
     });
   });
 
@@ -158,9 +173,9 @@ describe('subscription.service', () => {
         token: subscriptionRecord.confirmationToken,
       });
 
-      expect(subscriptionRepository.findByConfirmationToken).toHaveBeenCalledWith(
-        subscriptionRecord.confirmationToken,
-      );
+      expect(
+        subscriptionRepository.findByConfirmationToken,
+      ).toHaveBeenCalledWith(subscriptionRecord.confirmationToken);
       expect(subscriptionRepository.updateConfirmation).toHaveBeenCalledWith(
         subscriptionRecord.id,
       );
@@ -203,9 +218,9 @@ describe('subscription.service', () => {
         token: subscriptionRecord.unsubscribeToken,
       });
 
-      expect(subscriptionRepository.deleteByUnsubscribeToken).toHaveBeenCalledWith(
-        subscriptionRecord.unsubscribeToken,
-      );
+      expect(
+        subscriptionRepository.deleteByUnsubscribeToken,
+      ).toHaveBeenCalledWith(subscriptionRecord.unsubscribeToken);
     });
 
     it('throws NotFoundError when token does not exist', async () => {

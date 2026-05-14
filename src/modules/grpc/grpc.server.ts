@@ -20,13 +20,18 @@ const PROTO_LOADER_OPTIONS: protoLoader.Options = {
 };
 
 const loadReleaseNotifierPackage = (): ReleaseNotifierGrpcPackage => {
-  const packageDefinition = protoLoader.loadSync(PROTO_PATH, PROTO_LOADER_OPTIONS);
+  const packageDefinition = protoLoader.loadSync(
+    PROTO_PATH,
+    PROTO_LOADER_OPTIONS,
+  );
   const grpcObject = grpc.loadPackageDefinition(
     packageDefinition,
   ) as LoadedGrpcObject;
 
   if (!grpcObject.release_notifier?.ReleaseNotifier?.service) {
-    throw new Error('Failed to load gRPC package release_notifier.ReleaseNotifier');
+    throw new Error(
+      'Failed to load gRPC package release_notifier.ReleaseNotifier',
+    );
   }
 
   return grpcObject.release_notifier as unknown as ReleaseNotifierGrpcPackage;

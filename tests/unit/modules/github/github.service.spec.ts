@@ -27,7 +27,9 @@ describe('github.service', () => {
       const error = new Error('GitHub unavailable');
       request.mockRejectedValueOnce(error);
 
-      await expect(service.checkRepoExists('owner/repo')).rejects.toThrow(error);
+      await expect(service.checkRepoExists('owner/repo')).rejects.toThrow(
+        error,
+      );
     });
   });
 
@@ -44,7 +46,9 @@ describe('github.service', () => {
     it('returns null when repository or latest release is not found', async () => {
       request.mockRejectedValueOnce(new NotFoundError());
 
-      await expect(service.getLatestReleaseTag('owner/repo')).resolves.toBeNull();
+      await expect(
+        service.getLatestReleaseTag('owner/repo'),
+      ).resolves.toBeNull();
     });
 
     it('throws when response does not match schema', async () => {

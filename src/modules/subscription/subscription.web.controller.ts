@@ -5,12 +5,11 @@ import { webSubscribeLimiter } from '../../common/middlewares/rate-limit.middlew
 import { renderHtmlMessage } from '../../common/views/html.template';
 import { sendWebError } from '../../common/utils/web-error.util';
 
-const SUBSCRIBE_SUCCESS_MESSAGE = 'Subscription successful. Confirmation email sent.';
+const SUBSCRIBE_SUCCESS_MESSAGE =
+  'Subscription successful. Confirmation email sent.';
 
 export class SubscriptionWebController {
-  constructor(
-    private readonly subscriptionService: SubscriptionService,
-  ) {}
+  constructor(private readonly subscriptionService: SubscriptionService) {}
 
   buildRouter(): Router {
     const webController = Router();
@@ -32,21 +31,24 @@ export class SubscriptionWebController {
       },
     );
 
-    webController.get('/confirm/:token', async (req: Request, res: Response) => {
-      try {
-        const { token } = tokenParamSchema.parse(req.params);
-        await this.subscriptionService.confirmSubscription({ token });
+    webController.get(
+      '/confirm/:token',
+      async (req: Request, res: Response) => {
+        try {
+          const { token } = tokenParamSchema.parse(req.params);
+          await this.subscriptionService.confirmSubscription({ token });
 
-        res.send(
-          renderHtmlMessage(
-            'Confirmed',
-            'Your subscription has been confirmed successfully.',
-          ),
-        );
-      } catch (error) {
-        sendWebError(res, error);
-      }
-    });
+          res.send(
+            renderHtmlMessage(
+              'Confirmed',
+              'Your subscription has been confirmed successfully.',
+            ),
+          );
+        } catch (error) {
+          sendWebError(res, error);
+        }
+      },
+    );
 
     webController.get(
       '/unsubscribe/:token',

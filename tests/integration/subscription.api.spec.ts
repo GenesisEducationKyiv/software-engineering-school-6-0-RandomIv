@@ -68,7 +68,9 @@ describe('subscription routes integration', () => {
       );
 
       expect(response.status).toBe(401);
-      expect(subscriptionService.getSubscriptionsByEmail).not.toHaveBeenCalled();
+      expect(
+        subscriptionService.getSubscriptionsByEmail,
+      ).not.toHaveBeenCalled();
     });
   });
 
@@ -130,7 +132,9 @@ describe('subscription routes integration', () => {
         subscriptionService.createSubscription as jest.MockedFunction<
           SubscriptionService['createSubscription']
         >
-      ).mockRejectedValueOnce(new NotFoundError('Repository not found on GitHub'));
+      ).mockRejectedValueOnce(
+        new NotFoundError('Repository not found on GitHub'),
+      );
 
       const response = await request(app)
         .post('/api/subscribe')
@@ -291,7 +295,9 @@ describe('subscription routes integration', () => {
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toContain('text/html');
       expect(response.text).toContain('Unsubscribed');
-      expect(response.text).toContain('You have been successfully unsubscribed.');
+      expect(response.text).toContain(
+        'You have been successfully unsubscribed.',
+      );
     });
 
     it('still maps AppError responses in web routes', async () => {

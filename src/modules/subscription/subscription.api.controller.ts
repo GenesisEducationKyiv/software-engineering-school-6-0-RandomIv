@@ -1,7 +1,5 @@
 import { NextFunction, Request, Response, Router } from 'express';
-import {
-  SubscriptionService,
-} from './subscription.service';
+import { SubscriptionService } from './subscription.service';
 import {
   subscribeSchema,
   subscriptionsQuerySchema,
@@ -9,14 +7,13 @@ import {
 } from './subscription.schema';
 import { toSubscriptionDto } from './subscription.mapper';
 
-const SUBSCRIBE_SUCCESS_MESSAGE = 'Subscription successful. Confirmation email sent.';
+const SUBSCRIBE_SUCCESS_MESSAGE =
+  'Subscription successful. Confirmation email sent.';
 const CONFIRM_SUCCESS_MESSAGE = 'Subscription confirmed successfully';
 const UNSUBSCRIBE_SUCCESS_MESSAGE = 'Unsubscribed successfully';
 
 export class SubscriptionApiController {
-  constructor(
-    private readonly subscriptionService: SubscriptionService,
-  ) {}
+  constructor(private readonly subscriptionService: SubscriptionService) {}
 
   buildRouter(): Router {
     const controller = Router();
