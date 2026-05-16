@@ -161,6 +161,33 @@ describe('subscription.service', () => {
         subscriptionRepository.deleteByUnsubscribeToken,
       ).toHaveBeenCalledWith(subscriptionRecord.unsubscribeToken);
     });
+
+    it('re-throws non-P2002 Prisma errors without mapping to ConflictError', async () => {
+      githubService.checkRepoExists.mockResolvedValue(true);
+      repositoryService.getOrCreateRepository.mockResolvedValue(
+        repositoryRecord,
+      );
+
+      const prismaError = new Prisma.PrismaClientKnownRequestError(
+        'Foreign key constraint failed',
+        { code: 'P2003', clientVersion: 'test' } as never,
+      );
+      subscriptionRepository.createSubscription.mockRejectedValue(prismaError);
+
+      await expect(
+        service.createSubscription({
+          email: 'test@example.com',
+          repo: 'owner/repo',
+        }),
+      ).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+
+      await expect(
+        service.createSubscription({
+          email: 'test@example.com',
+          repo: 'owner/repo',
+        }),
+      ).rejects.not.toBeInstanceOf(ConflictError);
+    });
   });
 
   describe('confirmSubscription', () => {
