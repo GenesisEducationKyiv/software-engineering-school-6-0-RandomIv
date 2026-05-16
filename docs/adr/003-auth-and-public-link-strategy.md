@@ -42,25 +42,19 @@ Choose **split auth boundary**:
 
 - Protect REST `/api/*` with `x-api-key`.
 - Protect all gRPC methods with `x-api-key` metadata.
-- Use token-based public links for `/web/confirm/:token` and `/web/unsubscribe/:token`.
-- Keep `/web/subscribe` public but rate-limited.
+- Use token-based public links for user-initiated actions (email confirmations and unsubscriptions).
+- Keep subscription creation public but rate-limited.
 
 ## Consequences
 
 ### Positive
 
 - Good security posture for machine-to-machine usage.
-- Smooth user experience for confirmation/unsubscribe from email.
+- Smooth user experience for confirmation/unsubscription actions initiated from email.
 - Keeps implementation lightweight (no user account subsystem).
 
 ### Negative
 
 - Different transports have different auth paths, increasing documentation/testing surface.
 - Token leakage risk must be treated carefully in logs and URLs.
-
-## Implementation Notes
-
-- REST API key enforcement: `requireApiKey` middleware.
-- gRPC API key enforcement: metadata check in gRPC handlers.
-- Public subscribe route has IP rate limiting (`5` requests / `15` minutes).
-- Confirm/unsubscribe rely on per-subscription tokens stored in database.
+- Token links require sufficient TTL to accommodate user behavior (users may delay confirmations).

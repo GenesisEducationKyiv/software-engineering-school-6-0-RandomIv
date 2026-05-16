@@ -6,13 +6,10 @@
 
 ## Context
 
-The service repeatedly calls GitHub APIs for:
-
-- repository existence checks during subscribe flow;
-- latest release checks in the scheduled scanner.
+The service repeatedly calls GitHub APIs for repository and release information lookups.
 
 Without caching, repeated reads increase latency and consume GitHub rate limit faster.
-At the same time, the service must keep working if Redis is unavailable.
+The system must remain operational even when the caching layer is unavailable.
 
 ## Considered Options
 
@@ -40,26 +37,20 @@ At the same time, the service must keep working if Redis is unavailable.
 
 Choose **optional Redis cache with graceful fallback**.
 
-- Use Redis-backed cache when `REDIS_URL` is configured and connection succeeds.
+- Use a Redis-backed cache when the connection URL is configured via environment variables and the connection succeeds.
 - Fall back to a no-op cache implementation when Redis is unavailable.
-- Cache GitHub responses using TTL (`GITHUB_CACHE_TTL_SECONDS`).
+- Cache GitHub responses using a configurable TTL.
 
 ## Consequences
 
 ### Positive
 
 - Reduced repeated GitHub calls when cache is active.
-- Better resilience: Redis outages do not stop core subscription/scan flows.
-- One code path supports both Redis-enabled and Redis-less environments.
+- Better resilience: cache layer outages do not stop core flows.
+- Unified code path supports both cached and non-cached environments.
 
 ### Negative
 
-- During Redis outages, performance/rate-limit benefits are reduced.
+- During cache outages, performance and rate-limit benefits are reduced.
 - Cached responses can be stale until TTL expiry.
 - Cache failures are logged but do not fail requests, so cache guarantees are best-effort.
-
-## Implementation Notes
-
-- `cacheService` abstracts cache access and delegates to Redis or `nullCache`.
-- Redis client uses a reconnect cooldown after connection failure.
-- Cache keys are namespaced for GitHub repo info and latest release endpoints.

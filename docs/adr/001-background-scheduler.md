@@ -13,38 +13,36 @@ Current production architecture is a single Node.js monolith with:
 - HTTP API (Express)
 - gRPC API
 - PostgreSQL (Prisma)
-- Optional Redis cache for GitHub responses
 
 We need periodic execution with minimal infrastructure and straightforward operations.
 
 ## Considered Options
 
-### 1. Message Broker + Workers (RabbitMQ / Kafka)
+### 1. Message Broker + Workers
 
 - **Pros:** Decoupled processing, durable queues, mature retry patterns, better horizontal scaling.
 - **Cons:** Adds extra infrastructure and operational overhead for current system size.
 
-### 2. Database Queue Pattern (PostgreSQL `SKIP LOCKED`)
+### 2. Database Queue Pattern 
 
 - **Pros:** No new infrastructure component, supports worker competition.
 - **Cons:** Increases DB complexity/load, requires explicit queue lifecycle management.
 
-### 3. In-Process Scheduler (`node-cron`)
+### 3. In-Process Scheduler 
 
 - **Pros:** Simple implementation, no additional services, easy local/dev parity.
 - **Cons:** Job execution is tied to app process lifecycle; multi-instance deployments may duplicate scans.
 
 ## Decision
 
-Use **in-process scheduling with `node-cron`**.
+Use **in-process scheduling**.
 
-Implementation details in current codebase:
-
-- Scheduler starts at app bootstrap (`initReleaseCheckJob`).
-- Cron expression comes from `RELEASE_CHECK_CRON` (default `*/5 * * * *`).
-- Scanner processes repositories sequentially by design (simplicity and controlled SMTP load), sends notifications, and updates `lastSeenTag` only when all emails for that repository succeed.
-- On GitHub rate-limit errors, scanner stops the current cycle and continues on next cron tick.
-- Delivery semantics are effectively **at-least-once** for release emails: partial send failures (or crash before `lastSeenTag` update) can cause duplicate notifications on a later cycle.
+- The scheduler initializes at application startup.
+- The execution interval is configurable via environment variables.
+- The scanner processes repositories sequentially (for simplicity and to control email provider load).
+- It updates the repository's processed state only when all notifications for that repository succeed.
+- On GitHub rate-limit errors, the scanner aborts the current cycle and resumes on the next scheduled tick.
+- Delivery semantics are effectively **at-least-once**: partial send failures (or crashes before state updates) can cause duplicate notifications during the next cycle.
 
 ## Consequences
 
@@ -56,11 +54,7 @@ Implementation details in current codebase:
 
 ### Negative
 
-- **Horizontal scaling risk:** with multiple app instances, each instance can run the same cron job.
+- **Horizontal scaling risk:** with multiple app instances, each instance can run the same scheduled job.
 - **No durable queue semantics:** failed work is retried only on subsequent scheduler cycles.
-- **Duplicate notification risk on partial failures:** because `lastSeenTag` is updated only after full success, retries can re-notify already-emailed subscribers.
+- **Duplicate notification risk on partial failures:** because the repository state is updated only after full success, retries can re-notify already-emailed subscribers.
 - **Limited backpressure controls:** large spikes rely on application-level flow, not broker primitives.
-
-### Notes
-
-- Redis is currently used for optional GitHub response caching (TTL), **not** for distributed scheduler locking.

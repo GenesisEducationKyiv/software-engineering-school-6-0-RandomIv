@@ -3,7 +3,7 @@
 ## 1. Introduction
 
 ### Purpose
-Define the architecture and runtime behavior of the GitHub Release Notifier service, based on the current implementation in `main`.
+Define the architecture and runtime behavior of the GitHub Release Notifier service.
 
 ### Scope
 This document covers:
@@ -11,16 +11,10 @@ This document covers:
 - HTTP API and public web routes
 - gRPC API
 - Background release scanner
-- PostgreSQL persistence
-- Optional Redis cache
+- Persistence layer
+- Caching strategy
 - Email delivery
-- Metrics and deployment model
-
-### Out of Scope
-
-- User account system (password/JWT/session-based auth)
-- Message broker / worker architecture
-- Multi-region or multi-service orchestration
+- Operational metrics and health checks
 
 ---
 
@@ -28,65 +22,65 @@ This document covers:
 
 ### Functional Requirements
 
-1. Users can subscribe an email to a GitHub repository (`owner/repo`).
+1. Users can subscribe an email to a GitHub repository.
 2. Subscription must be confirmed via a token link sent by email.
 3. Users can unsubscribe via token link.
 4. Confirmed subscriptions can be listed by email.
-5. A scheduled job checks repositories for new releases.
+5. The system checks repositories for new releases.
 6. On new release, confirmed subscribers receive notification emails.
 
 ### Non-Functional Requirements
 
 - Keep infrastructure simple (single service + standard dependencies).
-- Maintain service operation if Redis is unavailable.
-- Protect programmatic API access with API key.
-- Expose operational metrics and health endpoint.
+- Maintain service operation if the caching layer is unavailable.
+- Protect programmatic API access with an API key.
+- Expose operational metrics and health checks.
 
 ---
 
 ## 3. Architecture Overview
 
 ### Architecture Style
-Single Node.js monolith with internal modules and in-process scheduler.
+Single-process application with internal modules and background task scheduling.
 
 ### Technology Stack
 
 | Layer | Technology |
 | --- | --- |
 | Runtime | Node.js + TypeScript |
-| HTTP | Express 5 |
-| RPC | gRPC (`@grpc/grpc-js`) |
+| HTTP Transport | Express framework |
+| RPC Transport | gRPC |
 | Validation | Zod |
-| Persistence | PostgreSQL + Prisma |
-| Scheduler | `node-cron` |
-| Email | Nodemailer (Gmail SMTP) |
-| Cache | Redis (optional) |
-| Metrics | Prometheus (`prom-client`) |
+| Persistence | ORM with relational database |
+| Task Scheduling | In-process scheduler |
+| Email Delivery | SMTP provider |
+| Caching | Optional distributed cache |
+| Monitoring | Prometheus metrics |
 
 ### High-Level Context
 
 ```mermaid
 graph TD
-    U[End User / Client] -->|HTTP| APP[Node.js Monolith]
+    U[End User / Client] -->|HTTP| APP[Application]
     U -->|gRPC| APP
 
-    APP -->|Prisma| DB[(PostgreSQL)]
-    APP -->|Optional cache| REDIS[(Redis)]
-    APP -->|REST calls| GH[GitHub API]
-    APP -->|SMTP| SMTP[Email Provider]
+    APP -->|ORM| DB[(Relational Database)]
+    APP -->|Optional| CACHE[(Cache Layer)]
+    APP -->|REST API| GH[External Service]
+    APP -->|SMTP| EMAIL[Email Provider]
 
-    APP -->|Release notifications| U
+    APP -->|Notifications| U
 ```
 
 ### Internal Modules
 
-- `subscription` — create/confirm/unsubscribe/list business logic
-- `github` — GitHub API integration
-- `repository` — repository persistence operations
-- `notification` — email sending
-- `scanner` — scheduled release checks
+- `subscription` — subscription business logic
+- `github` — external service integration
+- `repository` — repository persistence
+- `notification` — email delivery
+- `scanner` — release detection and dispatch
 - `grpc` — gRPC server and handlers
-- `common` — cache, errors, middleware, metrics, shared utils
+- `common` — cache, errors, middleware, metrics, shared utilities
 
 ---
 
@@ -98,11 +92,11 @@ graph TD
 - `GET /health`
 - `GET /metrics`
 
-**Protected REST API (`x-api-key` required)**
+**Protected API (`x-api-key` required)**
 - `POST /api/subscribe`
 - `GET /api/confirm/:token`
 - `GET /api/unsubscribe/:token`
-- `GET /api/subscriptions?email=...`
+- `GET /api/subscriptions`
 
 **Public Web Routes**
 - `POST /web/subscribe` (rate-limited)
@@ -123,17 +117,19 @@ All gRPC methods require metadata key `x-api-key`.
 
 ## 5. Data Model
 
-### Relational Schema (PostgreSQL)
+### Relational Schema
 
-| Table | Key Fields | Purpose |
-| --- | --- | --- |
-| `repositories` | `id`, `full_name` (unique), `last_seen_tag`, `updated_at` | Tracks monitored GitHub repositories and last processed release tag |
-| `subscriptions` | `id`, `email`, `confirmed`, `confirmation_token` (unique), `unsubscribe_token` (unique), `repository_id` | Stores subscription lifecycle and user tokens |
+The system persists two primary entities:
+
+| Entity | Purpose |
+| --- | --- |
+| `repositories` | Tracks monitored repositories and last processed release |
+| `subscriptions` | Stores subscription lifecycle (pending/confirmed) and user tokens |
 
 Constraints:
 
-- One active subscription record per pair: `(email, repository_id)` (unique).
-- `subscriptions.repository_id` references `repositories.id` with cascade delete.
+- One subscription per (email, repository) pair.
+- Subscriptions reference repositories with cascade delete.
 
 ---
 
@@ -144,59 +140,56 @@ Constraints:
 ```mermaid
 sequenceDiagram
     participant User
-    participant API as HTTP/gRPC Transport
+    participant Transport as HTTP/gRPC
     participant SVC as Subscription Service
-    participant GH as GitHub API
-    participant DB as PostgreSQL
-    participant SMTP as Email Provider
+    participant ExternalSvc as External Service
+    participant DB as Database
+    participant Provider as Email Provider
 
-    User->>API: Subscribe(email, repo)
-    API->>SVC: createSubscription
-    SVC->>GH: Validate repo exists
-    GH-->>SVC: Exists / Not Found
-    SVC->>DB: Upsert repository + create unconfirmed subscription
-    SVC->>SMTP: Send confirmation email with token links
-    SMTP-->>User: Confirmation email
+    User->>Transport: Subscribe(email, repo)
+    Transport->>SVC: Create subscription
+    SVC->>ExternalSvc: Validate repository exists
+    ExternalSvc-->>SVC: Exists / Not Found
+    SVC->>DB: Create unconfirmed subscription
+    SVC->>Provider: Send confirmation email
+    Provider-->>User: Confirmation email
 
-    User->>API: Confirm(token)
-    API->>SVC: confirmSubscription
-    SVC->>DB: Mark subscription confirmed=true
-    SVC-->>User: Confirmation success
+    User->>Transport: Confirm(token)
+    Transport->>SVC: Confirm subscription
+    SVC->>DB: Mark confirmed
+    SVC-->>User: Success
 ```
 
-### 6.2 Scheduled Release Scan Flow
+### 6.2 Release Detection and Notification Flow
 
 ```mermaid
 sequenceDiagram
-    participant Cron as node-cron Job
-    participant Scanner as Scanner Service
-    participant DB as PostgreSQL
-    participant GH as GitHub API
-    participant SMTP as Email Provider
+    participant Scheduler
+    participant Scanner as Release Scanner
+    participant DB as Database
+    participant ExternalSvc as External Service
+    participant Provider as Email Provider
 
-    loop Every RELEASE_CHECK_CRON (default */5 * * * *)
-        Cron->>Scanner: checkReleases()
+    loop Periodically
+        Scheduler->>Scanner: Check for releases
         Scanner->>DB: Load repositories with confirmed subscriptions
-
-        loop For each repository (sequential)
-            Scanner->>GH: GET /repos/{repo}/releases/latest
-            GH-->>Scanner: latest tag / not found / rate-limit
-
-            alt New tag detected
-                loop For each confirmed subscriber (sequential)
-                    Scanner->>SMTP: Send release email
-                    SMTP-->>Scanner: success/failure
+        
+        loop For each repository
+            Scanner->>ExternalSvc: Fetch latest release
+            ExternalSvc-->>Scanner: Release / Not Found / Rate Limit
+            
+            alt New release detected
+                Scanner->>DB: Load confirmed subscribers
+                loop For each subscriber
+                    Scanner->>Provider: Send notification
+                    Provider-->>Scanner: Sent / Failed
                 end
-                Note over Scanner,SMTP: Sequential delivery is intentional for simplicity and to avoid SMTP overload; queue/parallel fan-out is a future scaling option.
-                alt All emails sent
-                    Scanner->>DB: Update last_seen_tag
-                else Any email failed
-                    Scanner-->>Scanner: Skip last_seen_tag update
+                
+                alt All succeeded
+                    Scanner->>DB: Update last seen release
+                else Any failed
+                    Scanner-->>Scanner: Retry next cycle
                 end
-            end
-
-            alt GitHub rate limit error
-                Scanner-->>Cron: Stop current cycle early
             end
         end
     end
@@ -206,24 +199,21 @@ sequenceDiagram
 
 ## 7. Caching & External Integrations
 
-### GitHub Integration
+### External Service Integration
 
-GitHub calls are made via:
+The application integrates with an external service to verify repository information and retrieve release metadata.
 
-- `GET /repos/{owner}/{repo}` (repository existence)
-- `GET /repos/{owner}/{repo}/releases/latest` (latest release tag)
-
-Rate-limit style errors are mapped to internal `RateLimitError`.
+Rate-limit responses are mapped to internal contract errors.
 
 ### Cache Strategy
 
-- Cache abstraction: `cacheService`.
-- Primary backend: Redis (if configured and reachable).
-- Fallback backend: `nullCache` (no-op).
-- TTL: `GITHUB_CACHE_TTL_SECONDS` (default `600`).
-- Cached objects include repository info and latest release responses.
+- **Cache Abstraction:** Unified interface for cache operations.
+- **Primary Backend:** Distributed cache system (if configured and reachable).
+- **Fallback Backend:** In-memory no-op implementation.
+- **TTL:** Configurable via environment variables.
+- **Cached Objects:** Repository verification and release metadata.
 
-This keeps the app operational even when Redis is down, with degraded cache efficiency.
+This design ensures the application remains operational during cache layer degradation.
 
 ---
 
@@ -231,15 +221,15 @@ This keeps the app operational even when Redis is down, with degraded cache effi
 
 ### Access Control
 
-- `/api/*` routes are protected by `x-api-key`.
-- All gRPC methods validate `x-api-key` from metadata.
-- `/web/subscribe` is public but rate-limited (`5` requests / `15` minutes / IP).
-- `/web/confirm/:token` and `/web/unsubscribe/:token` rely on one-time token lookup.
+- Protected API routes are secured by explicit API key validation.
+- All remote procedure calls validate API key from metadata headers.
+- Public subscription creation is rate-limited per identifier.
+- User-initiated verification actions rely on secure token lookup.
 
 ### Input Validation
 
-- Request payloads and params are validated with Zod.
-- Validation errors are returned as structured HTTP 400 responses.
+- Incoming payloads and query parameters are validated at the transport boundary.
+- Validation errors are returned as structured bad request responses.
 
 ---
 
@@ -247,21 +237,20 @@ This keeps the app operational even when Redis is down, with degraded cache effi
 
 ### Error Handling
 
-- Domain errors use `AppError` and typed subclasses (`NotFoundError`, `ConflictError`, etc.).
-- Prisma known errors are mapped to API-friendly responses.
-- Unknown errors return HTTP 500.
+- Domain errors use predefined application errors and explicitly typed subclasses.
+- External integration errors are gracefully mapped to clean, transport-agnostic responses.
+- Unhandled errors default to standard internal server error responses.
 
 ### Metrics & Health
 
-- `/health` for liveness checks.
-- `/metrics` exposes Prometheus metrics.
-- HTTP metrics include request count and latency histogram.
+- Dedicated health endpoint exposes internal system liveness state.
+- Metrics endpoint exposes operational runtime data including request frequency and latency.
 
 ### Scheduler Operations
 
-- Cron schedule is validated at startup.
-- Job is initialized during bootstrap and stopped during graceful shutdown.
-- Graceful shutdown also closes HTTP and gRPC servers.
+- Scheduler parameters are verified during application bootstrap.
+- Scheduler initializes during startup and shuts down gracefully.
+- Graceful shutdown ensures all active connections are properly closed.
 
 ---
 
@@ -269,30 +258,20 @@ This keeps the app operational even when Redis is down, with degraded cache effi
 
 ### Test Pyramid in This Project
 
-- **Unit tests** (`tests/unit/*`) cover core logic in:
-  - subscription service
-  - repository service
-  - GitHub integration helpers/services
-  - scanner behavior
-  - email service
-  - middleware and gRPC handlers
-- **Integration tests** (`tests/integration/*`) cover transport and app wiring:
-  - REST API behavior
-  - app-level API routes
-  - gRPC API behavior
+- **Unit tests** cover core business logic and integration boundaries with mocked external services.
+- **Integration tests** cover API transports (HTTP and gRPC) and application wiring.
 
 ### Tooling and Execution
 
-- Test runner: **Jest** (`ts-jest`).
-- Main command: `npm test` (configured as `jest --runInBand`).
-- Test setup files initialize shared mocks/environment for stable runs.
+- Tests run in isolation to ensure environment stability.
+- Test initialization configures shared test doubles and environment parameters.
 
 ### What Is Verified
 
 - Request validation and error mapping across transports.
 - API key enforcement for REST and gRPC interfaces.
 - Subscription lifecycle rules (create/confirm/unsubscribe/list).
-- Scanner release-detection logic and `lastSeenTag` update behavior.
+- Release detection logic and state update behavior.
 - Cache and external integration boundaries via mocks.
 
 ---
@@ -301,22 +280,21 @@ This keeps the app operational even when Redis is down, with degraded cache effi
 
 ### Current Deployment Environment
 
-Current production deployment runs on a **Google Cloud VM (single instance)** using Docker Compose.
+The production service runs in a containerized infrastructure on a single managed instance.
 
 ### Local/Container Deployment
 
-`docker-compose.yml` runs:
+The deployment orchestration includes:
 
-- `app` (Node.js service)
-- `postgres` (PostgreSQL 15)
-- `redis` (Redis 7)
+- The main application service
+- The relational database
+- The optional cache system
 
-App startup sequence:
+Application initialization sequence:
 
-1. Environment is loaded and validated.
-2. HTTP server starts.
-3. gRPC server starts.
-4. Release-check cron job is initialized.
+1. Load and validate environment configuration.
+2. Initialize HTTP and gRPC servers.
+3. Start background scheduler.
 
 ---
 
@@ -324,15 +302,15 @@ App startup sequence:
 
 ### Current Tradeoffs
 
-1. **In-process scheduler** keeps complexity low, but multi-instance deployments can run duplicate jobs.
-2. **Sequential notification dispatch** is a deliberate simplicity/backpressure tradeoff, but it can increase scan duration for repositories with many subscribers.
-3. **No durable queue** means retries happen on later cron cycles, not via persistent task state.
-4. **At-least-once notification behavior:** if a cycle partially sends emails and `last_seen_tag` is not updated, a later cycle may re-send the same release notification to already-notified subscribers.
-5. **Best-effort cache** preserves uptime but does not guarantee cache availability.
-6. **Split auth model** (API key + token links) improves UX and machine security, but increases documentation/testing surface.
+1. **In-process scheduler** keeps complexity low but can result in duplicate execution in multi-instance environments without distributed coordination.
+2. **Sequential notification delivery** simplifies implementation and provides backpressure control but limits throughput under high subscriber loads.
+3. **Volatile task state** avoids persistent state storage complexity but relies on periodic retries rather than explicit state tracking.
+4. **At-least-once notification semantics** prioritize guaranteed delivery over strict single-delivery but risk duplicate messages if cycles are interrupted.
+5. **Best-effort cache** prioritizes availability over consistency, accepting degraded performance during cache outages.
+6. **Split auth model** secures service-to-service interfaces while providing frictionless user experiences, at the cost of expanded testing surface.
 
 ### Future Evolution Paths
 
-- Add distributed job coordination if horizontal scaling becomes required.
-- Introduce durable notification queue for stronger delivery guarantees.
-- Add delivery retry/backoff policy with explicit attempt tracking.
+- Add distributed job coordination for horizontal scaling scenarios.
+- Introduce persistent message queue for stronger delivery guarantees.
+- Implement explicit retry policies with backoff and attempt tracking.
