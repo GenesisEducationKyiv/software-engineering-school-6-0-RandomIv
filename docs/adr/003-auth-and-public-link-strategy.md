@@ -57,4 +57,4 @@ Choose **split auth boundary**:
 
 - Different transports have different auth paths, increasing documentation/testing surface.
 - Token leakage risk must be treated carefully in logs and URLs.
-- Token links require sufficient TTL to accommodate user behavior (users may delay confirmations).
+- Token links are currently perpetual to ensure users can confirm at any time without friction. Adding a TTL is noted as a future security enhancement to mitigate the risk of leaked URLs.
