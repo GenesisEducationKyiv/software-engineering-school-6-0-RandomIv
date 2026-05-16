@@ -1,5 +1,9 @@
 import * as grpc from '@grpc/grpc-js';
-import { ConflictError } from '../../../../src/common/errors';
+import {
+  ConflictError,
+  NotFoundError,
+  BadRequestError,
+} from '../../../../src/common/errors';
 import { createReleaseNotifierGrpcHandlers } from '../../../../src/modules/grpc/grpc.handlers';
 import type {
   ConfirmRequest,
@@ -125,6 +129,77 @@ describe('grpc.handlers', () => {
     expect(subscriptionService.confirmSubscription).not.toHaveBeenCalled();
   });
 
+  it('confirm returns success message', async () => {
+    (
+      subscriptionService.confirmSubscription as jest.MockedFunction<
+        SubscriptionService['confirmSubscription']
+      >
+    ).mockResolvedValueOnce();
+
+    const result = await invokeUnary<ConfirmRequest, OperationResponse>(
+      handlers.confirm,
+      {
+        token: '8c917f35-99a6-44d3-b200-e36dcf346f2e',
+      },
+      withApiKey(),
+    );
+
+    expect(result.error).toBeNull();
+    expect(result.response?.message).toBeDefined();
+    expect(subscriptionService.confirmSubscription).toHaveBeenCalledWith({
+      token: '8c917f35-99a6-44d3-b200-e36dcf346f2e',
+    });
+  });
+
+  it('confirm maps service NotFoundError to NOT_FOUND', async () => {
+    (
+      subscriptionService.confirmSubscription as jest.MockedFunction<
+        SubscriptionService['confirmSubscription']
+      >
+    ).mockRejectedValueOnce(new NotFoundError('Token not found'));
+
+    const result = await invokeUnary<ConfirmRequest, OperationResponse>(
+      handlers.confirm,
+      {
+        token: '8c917f35-99a6-44d3-b200-e36dcf346f2e',
+      },
+      withApiKey(),
+    );
+
+    expect(result.error?.code).toBe(grpc.status.NOT_FOUND);
+  });
+
+  it('confirm maps service BadRequestError to INVALID_ARGUMENT', async () => {
+    (
+      subscriptionService.confirmSubscription as jest.MockedFunction<
+        SubscriptionService['confirmSubscription']
+      >
+    ).mockRejectedValueOnce(new BadRequestError('Token already used'));
+
+    const result = await invokeUnary<ConfirmRequest, OperationResponse>(
+      handlers.confirm,
+      {
+        token: '8c917f35-99a6-44d3-b200-e36dcf346f2e',
+      },
+      withApiKey(),
+    );
+
+    expect(result.error?.code).toBe(grpc.status.INVALID_ARGUMENT);
+  });
+
+  it('unsubscribe validates token as UUID', async () => {
+    const result = await invokeUnary<UnsubscribeRequest, OperationResponse>(
+      handlers.unsubscribe,
+      {
+        token: 'not-a-uuid',
+      },
+      withApiKey(),
+    );
+
+    expect(result.error?.code).toBe(grpc.status.INVALID_ARGUMENT);
+    expect(subscriptionService.unsubscribeByToken).not.toHaveBeenCalled();
+  });
+
   it('unsubscribe returns success message', async () => {
     (
       subscriptionService.unsubscribeByToken as jest.MockedFunction<
@@ -146,6 +221,24 @@ describe('grpc.handlers', () => {
     });
   });
 
+  it('unsubscribe maps service NotFoundError to NOT_FOUND', async () => {
+    (
+      subscriptionService.unsubscribeByToken as jest.MockedFunction<
+        SubscriptionService['unsubscribeByToken']
+      >
+    ).mockRejectedValueOnce(new NotFoundError('Token not found'));
+
+    const result = await invokeUnary<UnsubscribeRequest, OperationResponse>(
+      handlers.unsubscribe,
+      {
+        token: '8c917f35-99a6-44d3-b200-e36dcf346f2e',
+      },
+      withApiKey(),
+    );
+
+    expect(result.error?.code).toBe(grpc.status.NOT_FOUND);
+  });
+
   it('getSubscriptions requires API key metadata', async () => {
     const result = await invokeUnary<
       GetSubscriptionsRequest,
@@ -155,6 +248,22 @@ describe('grpc.handlers', () => {
     });
 
     expect(result.error?.code).toBe(grpc.status.UNAUTHENTICATED);
+    expect(subscriptionService.getSubscriptionsByEmail).not.toHaveBeenCalled();
+  });
+
+  it('getSubscriptions validates email format', async () => {
+    const result = await invokeUnary<
+      GetSubscriptionsRequest,
+      GetSubscriptionsResponse
+    >(
+      handlers.getSubscriptions,
+      {
+        email: 'invalid-email',
+      },
+      withApiKey(),
+    );
+
+    expect(result.error?.code).toBe(grpc.status.INVALID_ARGUMENT);
     expect(subscriptionService.getSubscriptionsByEmail).not.toHaveBeenCalled();
   });
 
