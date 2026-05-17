@@ -66,7 +66,7 @@ graph TD
 
     APP -->|ORM| DB[(Relational Database)]
     APP -->|Optional| CACHE[(Cache Layer)]
-    APP -->|REST API| GH[External Service]
+    APP -->|REST API| GH[GitHub]
     APP -->|SMTP| EMAIL[Email Provider]
 
     APP -->|Notifications| U
@@ -142,7 +142,7 @@ sequenceDiagram
     participant User
     participant Transport as HTTP/gRPC
     participant SVC as Subscription Service
-    participant ExternalSvc as External Service
+    participant ExternalSvc as GitHub
     participant DB as Database
     participant Provider as Email Provider
 
@@ -167,7 +167,7 @@ sequenceDiagram
     participant Scheduler
     participant Scanner as Release Scanner
     participant DB as Database
-    participant ExternalSvc as External Service
+    participant ExternalSvc as GitHub
     participant Provider as Email Provider
 
     loop Periodically
@@ -199,9 +199,9 @@ sequenceDiagram
 
 ## 7. Caching & External Integrations
 
-### External Service Integration
+### GitHub Integration
 
-The application integrates with an external service to verify repository information and retrieve release metadata.
+The application integrates with GitHub to verify repository information and retrieve release metadata.
 
 Rate-limit responses are mapped to internal contract errors.
 
