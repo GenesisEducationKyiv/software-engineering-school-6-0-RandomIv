@@ -1,7 +1,7 @@
 import { HttpStatus } from '../../common/constants/http-status.constants';
 import { AppError, RateLimitError } from '../../common/errors';
 import { cacheService } from '../../common/cache/cache.service';
-import { logger } from '../../common/logger/logger';
+import { pinoLogger } from '../../common/logger/pino.logger';
 import { httpClient } from '../../common/utils/http-client';
 import { config } from '../../config';
 import { getGitHubCacheKey } from './github.cache-keys';
@@ -42,7 +42,7 @@ export const githubHttpClient = async <T>(path: string): Promise<T> => {
           return cachedResponse;
         }
       } catch (cacheError) {
-        logger.error(
+        pinoLogger.error(
           { cacheKey, err: cacheError },
           '[GitHub] Failed to read cache',
         );
@@ -64,7 +64,7 @@ export const githubHttpClient = async <T>(path: string): Promise<T> => {
           config.GITHUB_CACHE_TTL_SECONDS,
         );
       } catch (cacheError) {
-        logger.error(
+        pinoLogger.error(
           { cacheKey, err: cacheError },
           '[GitHub] Failed to write cache',
         );

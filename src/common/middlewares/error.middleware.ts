@@ -4,7 +4,7 @@ import { Prisma } from '../../generated/prisma/client';
 import { AppError } from '../errors';
 import { HttpStatus } from '../constants/http-status.constants';
 import { config } from '../../config';
-import { logger } from '../logger/logger';
+import { pinoLogger } from '../logger/pino.logger';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
@@ -168,7 +168,7 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): Response | void => {
-  logger.error(`[Error] ${getErrorName(err)}: ${getErrorMessage(err)}`);
+  pinoLogger.error(`[Error] ${getErrorName(err)}: ${getErrorMessage(err)}`);
 
   if (err instanceof ZodError) {
     return res.status(HttpStatus.BAD_REQUEST).json({

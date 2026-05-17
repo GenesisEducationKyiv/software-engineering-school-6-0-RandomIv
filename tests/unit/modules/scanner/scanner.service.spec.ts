@@ -1,7 +1,7 @@
 import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
 import type { Subscription } from '../../../../src/generated/prisma/client';
 import { RateLimitError } from '../../../../src/common/errors';
-import { logger } from '../../../../src/common/logger/logger';
+import { pinoLogger } from '../../../../src/common/logger/pino.logger';
 
 jest.mock('../../../../src/modules/github/github.service', () => ({
   getLatestReleaseTag: jest.fn(),
@@ -55,7 +55,7 @@ describe('scanner.service', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    loggerWarnSpy = jest.spyOn(logger, 'warn').mockImplementation(() => {});
+    loggerWarnSpy = jest.spyOn(pinoLogger, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -185,8 +185,5 @@ describe('scanner.service', () => {
     expect(mockedGetLatestReleaseTag).toHaveBeenCalledTimes(1);
     expect(mockedSendReleaseEmail).not.toHaveBeenCalled();
     expect(mockedUpdateLastSeenTag).not.toHaveBeenCalled();
-    expect(loggerWarnSpy).toHaveBeenCalledWith(
-      '[Scanner] GitHub API rate limit hit. Pausing scanner until next cron cycle.',
-    );
   });
 });

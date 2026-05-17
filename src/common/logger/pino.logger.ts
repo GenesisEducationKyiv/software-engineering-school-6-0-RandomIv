@@ -1,13 +1,8 @@
 import pino, { type Logger as PinoInstance } from 'pino';
+import type { Logger } from './logger.interface';
 
 const isTest = process.env.NODE_ENV === 'test';
 const isProd = process.env.NODE_ENV === 'production';
-
-export interface Logger {
-  info(...args: unknown[]): void;
-  warn(...args: unknown[]): void;
-  error(...args: unknown[]): void;
-}
 
 const createPinoInstance = (): PinoInstance =>
   pino({
@@ -45,4 +40,4 @@ export class PinoLogger implements Logger {
   }
 }
 
-export const logger: Logger = new PinoLogger();
+export const pinoLogger: Logger = new PinoLogger();
