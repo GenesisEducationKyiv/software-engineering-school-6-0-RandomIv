@@ -1,5 +1,6 @@
 import type * as grpc from '@grpc/grpc-js';
-import { UnauthorizedError } from '../../common/errors';
+import { MESSAGES } from '../../common/constants/messages.constant';
+import { validateApiKey } from '../../common/utils/api-key.util';
 import { SubscriptionService } from '../subscription/subscription.service';
 import {
   subscribeSchema,
@@ -18,10 +19,6 @@ import type {
   UnsubscribeRequest,
 } from './grpc.types';
 
-const SUBSCRIBE_SUCCESS_MESSAGE =
-  'Subscription successful. Confirmation email sent.';
-const CONFIRM_SUCCESS_MESSAGE = 'Subscription confirmed successfully';
-const UNSUBSCRIBE_SUCCESS_MESSAGE = 'Unsubscribed successfully';
 const API_KEY_METADATA_KEY = 'x-api-key';
 
 const withUnaryHandler = <TRequest, TResponse>(
@@ -54,9 +51,7 @@ export class ReleaseNotifierGrpcHandlerFactory {
   createHandlers(): ReleaseNotifierHandlers {
     const ensureAuthorized = (metadata: grpc.Metadata): void => {
       const providedApiKey = getApiKeyFromMetadata(metadata);
-      if (!providedApiKey || providedApiKey !== this.apiKey) {
-        throw new UnauthorizedError('Invalid API key');
-      }
+      validateApiKey(providedApiKey, this.apiKey);
     };
 
     const subscribe = withUnaryHandler<SubscribeRequest, OperationResponse>(
@@ -66,7 +61,7 @@ export class ReleaseNotifierGrpcHandlerFactory {
         await this.subscriptionService.createSubscription({ email, repo });
 
         return {
-          message: SUBSCRIBE_SUCCESS_MESSAGE,
+          message: MESSAGES.SUBSCRIBE_SUCCESS,
         };
       },
     );
@@ -78,7 +73,7 @@ export class ReleaseNotifierGrpcHandlerFactory {
         await this.subscriptionService.confirmSubscription({ token });
 
         return {
-          message: CONFIRM_SUCCESS_MESSAGE,
+          message: MESSAGES.CONFIRM_SUCCESS,
         };
       },
     );
@@ -90,7 +85,7 @@ export class ReleaseNotifierGrpcHandlerFactory {
         await this.subscriptionService.unsubscribeByToken({ token });
 
         return {
-          message: UNSUBSCRIBE_SUCCESS_MESSAGE,
+          message: MESSAGES.UNSUBSCRIBE_SUCCESS,
         };
       },
     );

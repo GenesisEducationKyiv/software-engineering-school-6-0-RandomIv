@@ -28,7 +28,7 @@ const repositoryWithSubscriptions: RepositoryWithSubscriptions = {
   subscriptions: [subscription],
 };
 
-describe('repository.service', () => {
+describe('repository.repository', () => {
   const service = new PrismaRepositoryRepository(prismaMock);
 
   describe('getActiveRepositories', () => {

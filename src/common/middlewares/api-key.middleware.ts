@@ -1,6 +1,6 @@
 import type { NextFunction, Request, Response } from 'express';
-import { UnauthorizedError } from '../errors';
 import { config } from '../../config';
+import { validateApiKey } from '../utils/api-key.util';
 
 export const API_KEY_HEADER = 'x-api-key';
 
@@ -10,11 +10,6 @@ export const requireApiKey = (
   next: NextFunction,
 ): void => {
   const providedApiKey = req.header(API_KEY_HEADER);
-
-  if (!providedApiKey || providedApiKey !== config.API_KEY) {
-    next(new UnauthorizedError('Invalid API key'));
-    return;
-  }
-
+  validateApiKey(providedApiKey, config.API_KEY);
   next();
 };

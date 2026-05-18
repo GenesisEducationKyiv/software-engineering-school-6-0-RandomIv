@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response, Router } from 'express';
+import { MESSAGES } from '../../common/constants/messages.constant';
 import { SubscriptionService } from './subscription.service';
 import {
   subscribeSchema,
@@ -6,11 +7,6 @@ import {
   tokenParamSchema,
 } from './subscription.schema';
 import { toSubscriptionDto } from './subscription.mapper';
-
-const SUBSCRIBE_SUCCESS_MESSAGE =
-  'Subscription successful. Confirmation email sent.';
-const CONFIRM_SUCCESS_MESSAGE = 'Subscription confirmed successfully';
-const UNSUBSCRIBE_SUCCESS_MESSAGE = 'Unsubscribed successfully';
 
 export class SubscriptionApiController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
@@ -29,7 +25,7 @@ export class SubscriptionApiController {
           });
 
           res.json({
-            message: SUBSCRIBE_SUCCESS_MESSAGE,
+            message: MESSAGES.SUBSCRIBE_SUCCESS,
           });
         } catch (error) {
           next(error);
@@ -45,7 +41,7 @@ export class SubscriptionApiController {
           await this.subscriptionService.confirmSubscription({ token });
 
           res.json({
-            message: CONFIRM_SUCCESS_MESSAGE,
+            message: MESSAGES.CONFIRM_SUCCESS,
           });
         } catch (error) {
           next(error);
@@ -61,7 +57,7 @@ export class SubscriptionApiController {
           await this.subscriptionService.unsubscribeByToken({ token });
 
           res.json({
-            message: UNSUBSCRIBE_SUCCESS_MESSAGE,
+            message: MESSAGES.UNSUBSCRIBE_SUCCESS,
           });
         } catch (error) {
           next(error);

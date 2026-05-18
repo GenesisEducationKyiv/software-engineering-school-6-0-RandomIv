@@ -1,12 +1,10 @@
 import { NextFunction, Request, Response, Router } from 'express';
+import { MESSAGES } from '../../common/constants/messages.constant';
 import { SubscriptionService } from './subscription.service';
 import { subscribeSchema, tokenParamSchema } from './subscription.schema';
 import { webSubscribeLimiter } from '../../common/middlewares/rate-limit.middleware';
 import { renderHtmlMessage } from '../../common/views/html.template';
 import { sendWebError } from '../../common/utils/web-error.util';
-
-const SUBSCRIBE_SUCCESS_MESSAGE =
-  'Subscription successful. Confirmation email sent.';
 
 export class SubscriptionWebController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
@@ -23,7 +21,7 @@ export class SubscriptionWebController {
           await this.subscriptionService.createSubscription({ email, repo });
 
           res.json({
-            message: SUBSCRIBE_SUCCESS_MESSAGE,
+            message: MESSAGES.SUBSCRIBE_SUCCESS,
           });
         } catch (error) {
           next(error);
