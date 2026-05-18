@@ -19,7 +19,7 @@ export class SubscriptionApiController {
       async (req: Request, res: Response, next: NextFunction) => {
         try {
           const { email, repo } = subscribeSchema.parse(req.body);
-          await this.subscriptionService.createSubscription({
+          await this.subscriptionService.subscribe({
             email,
             repo,
           });

@@ -67,7 +67,7 @@ describe('subscription.service', () => {
         {} as never,
       );
 
-      const result = await service.createSubscription({
+      const result = await service.subscribe({
         email: 'test@example.com',
         repo: 'owner/repo',
       });
@@ -96,7 +96,7 @@ describe('subscription.service', () => {
       githubService.checkRepoExists.mockResolvedValue(false);
 
       await expect(
-        service.createSubscription({
+        service.subscribe({
           email: 'test@example.com',
           repo: 'owner/repo',
         }),
@@ -124,7 +124,7 @@ describe('subscription.service', () => {
         ),
       );
 
-      const createPromise = service.createSubscription({
+      const createPromise = service.subscribe({
         email: 'test@example.com',
         repo: 'owner/repo',
       });
@@ -151,7 +151,7 @@ describe('subscription.service', () => {
       subscriptionRepository.deleteByUnsubscribeToken.mockResolvedValue(1);
 
       await expect(
-        service.createSubscription({
+        service.subscribe({
           email: 'test@example.com',
           repo: 'owner/repo',
         }),

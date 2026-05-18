@@ -31,7 +31,7 @@ const invokeUnary = <TReq, TRes>(
 
 describe('grpc.handlers', () => {
   const subscriptionService: SubscriptionService = {
-    createSubscription: jest.fn(),
+    subscribe: jest.fn(),
     confirmSubscription: jest.fn(),
     unsubscribeByToken: jest.fn(),
     getSubscriptionsByEmail: jest.fn(),
@@ -62,13 +62,13 @@ describe('grpc.handlers', () => {
     );
 
     expect(result.error?.code).toBe(grpc.status.UNAUTHENTICATED);
-    expect(subscriptionService.createSubscription).not.toHaveBeenCalled();
+    expect(subscriptionService.subscribe).not.toHaveBeenCalled();
   });
 
   it('subscribe returns success message', async () => {
     (
-      subscriptionService.createSubscription as jest.MockedFunction<
-        SubscriptionService['createSubscription']
+      subscriptionService.subscribe as jest.MockedFunction<
+        SubscriptionService['subscribe']
       >
     ).mockResolvedValue({} as never);
 
@@ -85,7 +85,7 @@ describe('grpc.handlers', () => {
     expect(result.response).toEqual({
       message: 'Subscription successful. Confirmation email sent.',
     });
-    expect(subscriptionService.createSubscription).toHaveBeenCalledWith({
+    expect(subscriptionService.subscribe).toHaveBeenCalledWith({
       email: 'user@example.com',
       repo: 'owner/repo',
     });
@@ -93,8 +93,8 @@ describe('grpc.handlers', () => {
 
   it('subscribe maps service conflict to ALREADY_EXISTS', async () => {
     (
-      subscriptionService.createSubscription as jest.MockedFunction<
-        SubscriptionService['createSubscription']
+      subscriptionService.subscribe as jest.MockedFunction<
+        SubscriptionService['subscribe']
       >
     ).mockRejectedValueOnce(
       new ConflictError('Email already subscribed to this repository'),

@@ -58,7 +58,7 @@ export class ReleaseNotifierGrpcHandlerFactory {
       async (call) => {
         ensureAuthorized(call.metadata);
         const { email, repo } = subscribeSchema.parse(call.request);
-        await this.subscriptionService.createSubscription({ email, repo });
+        await this.subscriptionService.subscribe({ email, repo });
 
         return {
           message: MESSAGES.SUBSCRIBE_SUCCESS,

@@ -27,7 +27,7 @@ interface SubscriptionServiceDependencies {
 }
 
 export interface SubscriptionService {
-  createSubscription(input: SubscribeDto): Promise<Subscription>;
+  subscribe(input: SubscribeDto): Promise<Subscription>;
   confirmSubscription(input: TokenParamDto): Promise<void>;
   unsubscribeByToken(input: TokenParamDto): Promise<void>;
   getSubscriptionsByEmail(
@@ -54,10 +54,7 @@ export class SubscriptionApplicationService implements SubscriptionService {
     this.emailService = dependencies.emailService;
   }
 
-  async createSubscription({
-    email,
-    repo,
-  }: SubscribeDto): Promise<Subscription> {
+  async subscribe({ email, repo }: SubscribeDto): Promise<Subscription> {
     const repoExists = await this.githubService.checkRepoExists(repo);
 
     if (!repoExists) {

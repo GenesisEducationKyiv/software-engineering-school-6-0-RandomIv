@@ -79,7 +79,7 @@ describe('gRPC integration', () => {
         import('../../src/modules/grpc/grpc.handlers'),
       ]);
     const subscriptionService: SubscriptionService = {
-      createSubscription: jest.fn(),
+      subscribe: jest.fn(),
       confirmSubscription: jest.fn(),
       unsubscribeByToken: jest.fn(),
       getSubscriptionsByEmail: jest.fn(),

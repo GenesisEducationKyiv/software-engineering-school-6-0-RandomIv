@@ -18,7 +18,7 @@ export class SubscriptionWebController {
       async (req: Request, res: Response, next: NextFunction) => {
         try {
           const { email, repo } = subscribeSchema.parse(req.body);
-          await this.subscriptionService.createSubscription({ email, repo });
+          await this.subscriptionService.subscribe({ email, repo });
 
           res.json({
             message: MESSAGES.SUBSCRIBE_SUCCESS,

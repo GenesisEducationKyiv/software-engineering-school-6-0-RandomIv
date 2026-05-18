@@ -5,7 +5,7 @@ import type { SubscriptionService } from '../../src/modules/subscription/subscri
 
 describe('app routing integration', () => {
   const subscriptionService: SubscriptionService = {
-    createSubscription: jest.fn(),
+    subscribe: jest.fn(),
     confirmSubscription: jest.fn(),
     unsubscribeByToken: jest.fn(),
     getSubscriptionsByEmail: jest.fn(),

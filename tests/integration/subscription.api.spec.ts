@@ -10,7 +10,7 @@ const TEST_API_KEY = 'test-api-key';
 
 describe('subscription routes integration', () => {
   const subscriptionService: SubscriptionService = {
-    createSubscription: jest.fn(),
+    subscribe: jest.fn(),
     confirmSubscription: jest.fn(),
     unsubscribeByToken: jest.fn(),
     getSubscriptionsByEmail: jest.fn(),
@@ -41,7 +41,7 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Invalid API key',
       });
-      expect(subscriptionService.createSubscription).not.toHaveBeenCalled();
+      expect(subscriptionService.subscribe).not.toHaveBeenCalled();
     });
 
     it('blocks GET /api/confirm/:token without API key', async () => {
@@ -87,8 +87,8 @@ describe('subscription routes integration', () => {
       };
 
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockResolvedValueOnce(mockSubscription);
 
@@ -104,7 +104,7 @@ describe('subscription routes integration', () => {
       expect(response.body).toMatchObject({
         message: 'Subscription successful. Confirmation email sent.',
       });
-      expect(subscriptionService.createSubscription).toHaveBeenCalledWith({
+      expect(subscriptionService.subscribe).toHaveBeenCalledWith({
         email: 'user@example.com',
         repo: 'owner/repo',
       });
@@ -124,13 +124,13 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Validation failed',
       });
-      expect(subscriptionService.createSubscription).not.toHaveBeenCalled();
+      expect(subscriptionService.subscribe).not.toHaveBeenCalled();
     });
 
     it('POST /api/subscribe maps service errors', async () => {
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockRejectedValueOnce(
         new NotFoundError('Repository not found on GitHub'),
@@ -248,8 +248,8 @@ describe('subscription routes integration', () => {
       };
 
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockResolvedValueOnce(mockSubscription);
 
@@ -302,8 +302,8 @@ describe('subscription routes integration', () => {
 
     it('still maps AppError responses in web routes', async () => {
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockRejectedValueOnce(
         new AppError(409, 'Email already subscribed to this repository'),
