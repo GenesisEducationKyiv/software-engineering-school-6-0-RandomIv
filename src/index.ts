@@ -6,7 +6,10 @@ import { config } from './config';
 import { logger } from './common/logger/logger';
 import { createDependencyContainer } from './dependency-container';
 import { ReleaseCheckJob } from './jobs/release-check.job';
-import { createReleaseNotifierGrpcHandlers } from './modules/grpc/grpc.handlers';
+import {
+  SubscriptionGrpcController,
+  createSubscriptionGrpcHandlers,
+} from './modules/subscription/controllers/subscription.grpc.controller';
 import { startGrpcServer } from './modules/grpc/grpc.server';
 
 const PORT = config.PORT;
@@ -105,12 +108,12 @@ const bootstrap = async (): Promise<void> => {
     logger.info(`Server is running on port ${PORT}`);
   });
 
-  grpcServer = await startGrpcServer(
-    createReleaseNotifierGrpcHandlers(
-      dependencyContainer.subscriptionService,
-      config.API_KEY,
-    ),
+  const grpcController = new SubscriptionGrpcController(
+    dependencyContainer.subscriptionService,
+    config.API_KEY,
   );
+  const handlers = createSubscriptionGrpcHandlers(grpcController);
+  grpcServer = await startGrpcServer(handlers);
 
   releaseCheckTask = new ReleaseCheckJob(
     dependencyContainer.scannerService,

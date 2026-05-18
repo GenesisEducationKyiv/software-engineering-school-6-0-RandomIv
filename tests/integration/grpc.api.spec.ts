@@ -73,10 +73,10 @@ describe('gRPC integration', () => {
     process.env.GRPC_PORT = String(grpcPort);
 
     jest.resetModules();
-    const [{ startGrpcServer }, { createReleaseNotifierGrpcHandlers }] =
+    const [{ startGrpcServer }, { SubscriptionGrpcController, createSubscriptionGrpcHandlers }] =
       await Promise.all([
         import('../../src/modules/grpc/grpc.server'),
-        import('../../src/modules/grpc/grpc.handlers'),
+        import('../../src/modules/subscription/controllers/subscription.grpc.controller'),
       ]);
     const subscriptionService: SubscriptionService = {
       subscribe: jest.fn(),
@@ -84,9 +84,12 @@ describe('gRPC integration', () => {
       unsubscribeByToken: jest.fn(),
       getSubscriptionsByEmail: jest.fn(),
     };
-    grpcServer = await startGrpcServer(
-      createReleaseNotifierGrpcHandlers(subscriptionService, 'test-api-key'),
+    const grpcController = new SubscriptionGrpcController(
+      subscriptionService,
+      'test-api-key',
     );
+    const handlers = createSubscriptionGrpcHandlers(grpcController);
+    grpcServer = await startGrpcServer(handlers);
 
     const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
       keepCase: true,

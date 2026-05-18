@@ -1,14 +1,14 @@
 import { Request, Response, Router } from 'express';
-import { MESSAGES } from '../../common/constants/messages.constant';
-import { SubscriptionService } from './subscription.service';
+import { MESSAGES } from '../../../common/constants/messages.constant';
+import { SubscriptionService } from '../subscription.service';
 import {
   subscribeSchema,
   subscriptionsQuerySchema,
   tokenParamSchema,
-} from './subscription.schema';
-import { toSubscriptionDto } from './subscription.mapper';
+} from '../subscription.schema';
+import { toSubscriptionDto } from '../subscription.mapper';
 
-export class SubscriptionApiController {
+export class SubscriptionRestController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
   subscribe = async (req: Request, res: Response) => {
@@ -36,3 +36,14 @@ export class SubscriptionApiController {
     res.json(subscriptions.map(toSubscriptionDto));
   };
 }
+
+export const createSubscriptionApiRouter = (
+  controller: SubscriptionRestController,
+): Router => {
+  const router = Router();
+  router.post('/subscribe', controller.subscribe);
+  router.get('/confirm/:token', controller.confirm);
+  router.get('/unsubscribe/:token', controller.unsubscribe);
+  router.get('/subscriptions', controller.getSubscriptions);
+  return router;
+};

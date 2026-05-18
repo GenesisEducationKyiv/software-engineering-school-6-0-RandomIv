@@ -1,11 +1,13 @@
 import path from 'node:path';
 import express, { Application, Router } from 'express';
-import { SubscriptionApiController } from './modules/subscription/subscription.api.controller';
-import { SubscriptionWebController } from './modules/subscription/subscription.web.controller';
 import {
+  SubscriptionRestController,
   createSubscriptionApiRouter,
+} from './modules/subscription/controllers/subscription.rest.controller';
+import {
+  SubscriptionWebController,
   createSubscriptionWebRouter,
-} from './modules/subscription/subscription.routes';
+} from './modules/subscription/controllers/subscription.web.controller';
 import { errorHandler } from './common/middlewares/error.middleware';
 import { NotFoundError } from './common/errors';
 import {
@@ -35,7 +37,7 @@ export const createApp = ({
 
   app.get('/metrics', prometheusMetricsHandler);
 
-  const apiController = new SubscriptionApiController(subscriptionService);
+  const apiController = new SubscriptionRestController(subscriptionService);
   const webController = new SubscriptionWebController(subscriptionService);
 
   const subscriptionApiRouter = createSubscriptionApiRouter(apiController);

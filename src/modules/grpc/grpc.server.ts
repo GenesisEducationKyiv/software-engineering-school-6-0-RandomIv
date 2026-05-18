@@ -43,7 +43,10 @@ export const startGrpcServer = async (
   const grpcPackage = loadReleaseNotifierPackage();
   const server = new grpc.Server();
 
-  server.addService(grpcPackage.ReleaseNotifier.service, handlers);
+  server.addService(
+    grpcPackage.ReleaseNotifier.service,
+    handlers as unknown as grpc.UntypedServiceImplementation,
+  );
 
   const address = `${config.GRPC_HOST}:${config.GRPC_PORT}`;
 

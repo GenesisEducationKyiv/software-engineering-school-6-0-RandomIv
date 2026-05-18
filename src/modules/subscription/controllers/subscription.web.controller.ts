@@ -1,10 +1,10 @@
-import { Request, Response } from 'express';
-import { MESSAGES } from '../../common/constants/messages.constant';
-import { SubscriptionService } from './subscription.service';
-import { subscribeSchema, tokenParamSchema } from './subscription.schema';
-import { webSubscribeLimiter } from '../../common/middlewares/rate-limit.middleware';
-import { renderHtmlMessage } from '../../common/views/html.template';
-import { sendWebError } from '../../common/utils/web-error.util';
+import { Request, Response, Router } from 'express';
+import { MESSAGES } from '../../../common/constants/messages.constant';
+import { SubscriptionService } from '../subscription.service';
+import { subscribeSchema, tokenParamSchema } from '../subscription.schema';
+import { webSubscribeLimiter } from '../../../common/middlewares/rate-limit.middleware';
+import { renderHtmlMessage } from '../../../common/views/html.template';
+import { sendWebError } from '../../../common/utils/web-error.util';
 
 export class SubscriptionWebController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
@@ -45,3 +45,13 @@ export class SubscriptionWebController {
     }
   };
 }
+
+export const createSubscriptionWebRouter = (
+  controller: SubscriptionWebController,
+): Router => {
+  const router = Router();
+  router.post('/subscribe', webSubscribeLimiter, controller.subscribe);
+  router.get('/confirm/:token', controller.confirm);
+  router.get('/unsubscribe/:token', controller.unsubscribe);
+  return router;
+};
