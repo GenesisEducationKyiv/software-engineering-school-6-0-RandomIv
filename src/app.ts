@@ -1,7 +1,11 @@
 import path from 'node:path';
-import express, { Application } from 'express';
-import { createSubscriptionApiController } from './modules/subscription/subscription.api.controller';
-import { createSubscriptionWebController } from './modules/subscription/subscription.web.controller';
+import express, { Application, Router } from 'express';
+import { SubscriptionApiController } from './modules/subscription/subscription.api.controller';
+import { SubscriptionWebController } from './modules/subscription/subscription.web.controller';
+import {
+  createSubscriptionApiRouter,
+  createSubscriptionWebRouter,
+} from './modules/subscription/subscription.routes';
 import { errorHandler } from './common/middlewares/error.middleware';
 import { NotFoundError } from './common/errors';
 import {
@@ -31,18 +35,19 @@ export const createApp = ({
 
   app.get('/metrics', prometheusMetricsHandler);
 
-  const apiRouter = express.Router();
-  const subscriptionApiController =
-    createSubscriptionApiController(subscriptionService);
-  const webSubscriptionController =
-    createSubscriptionWebController(subscriptionService);
+  const apiController = new SubscriptionApiController(subscriptionService);
+  const webController = new SubscriptionWebController(subscriptionService);
 
+  const subscriptionApiRouter = createSubscriptionApiRouter(apiController);
+  const subscriptionWebRouter = createSubscriptionWebRouter(webController);
+
+  const apiRouter = Router();
   apiRouter.use(prometheusMetricsMiddleware);
   apiRouter.use(requireApiKey);
-  apiRouter.use('/', subscriptionApiController);
+  apiRouter.use('/', subscriptionApiRouter);
 
   app.use('/api', apiRouter);
-  app.use('/web', webSubscriptionController);
+  app.use('/web', subscriptionWebRouter);
 
   app.use((req, res, next) => {
     next(new NotFoundError('API route not found'));
