@@ -1,7 +1,6 @@
 import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
 import type { Subscription } from '../../../../src/generated/prisma/client';
 import { RateLimitError } from '../../../../src/common/errors';
-import { pinoLogger } from '../../../../src/common/logger/pino.logger';
 
 jest.mock('../../../../src/modules/github/github.service', () => ({
   getLatestReleaseTag: jest.fn(),
@@ -51,15 +50,8 @@ const createRepository = (
 });
 
 describe('scanner.service', () => {
-  let loggerWarnSpy: jest.SpyInstance;
-
   beforeEach(() => {
     jest.clearAllMocks();
-    loggerWarnSpy = jest.spyOn(pinoLogger, 'warn').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    loggerWarnSpy.mockRestore();
   });
 
   it('does nothing when there are no active repositories', async () => {
@@ -104,9 +96,7 @@ describe('scanner.service', () => {
       }),
     ]);
     mockedGetLatestReleaseTag.mockResolvedValueOnce('v2.0.0');
-    mockedSendReleaseEmail.mockResolvedValue({
-      messageId: 'ok',
-    } as never);
+    mockedSendReleaseEmail.mockResolvedValue({ messageId: 'ok' } as never);
 
     await checkReleases();
 
