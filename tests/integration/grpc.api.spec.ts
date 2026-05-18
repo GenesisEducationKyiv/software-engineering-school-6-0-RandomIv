@@ -73,11 +73,13 @@ describe('gRPC integration', () => {
     process.env.GRPC_PORT = String(grpcPort);
 
     jest.resetModules();
-    const [{ startGrpcServer }, { SubscriptionGrpcController, createSubscriptionGrpcHandlers }] =
-      await Promise.all([
-        import('../../src/modules/grpc/grpc.server'),
-        import('../../src/modules/subscription/controllers/subscription.grpc.controller'),
-      ]);
+    const [
+      { startGrpcServer },
+      { SubscriptionGrpcController, createSubscriptionGrpcHandlers },
+    ] = await Promise.all([
+      import('../../src/modules/grpc/grpc.server'),
+      import('../../src/modules/subscription/controllers/subscription.grpc.controller'),
+    ]);
     const subscriptionService: SubscriptionService = {
       subscribe: jest.fn(),
       confirmSubscription: jest.fn(),

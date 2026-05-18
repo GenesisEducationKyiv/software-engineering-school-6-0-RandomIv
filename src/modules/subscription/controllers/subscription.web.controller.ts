@@ -9,13 +9,13 @@ import { sendWebError } from '../../../common/utils/web-error.util';
 export class SubscriptionWebController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
-  subscribe = async (req: Request, res: Response) => {
+  subscribe = async (req: Request, res: Response): Promise<void> => {
     const { email, repo } = subscribeSchema.parse(req.body);
     await this.subscriptionService.subscribe({ email, repo });
     res.json({ message: MESSAGES.SUBSCRIBE_SUCCESS });
   };
 
-  confirm = async (req: Request, res: Response) => {
+  confirm = async (req: Request, res: Response): Promise<void> => {
     try {
       const { token } = tokenParamSchema.parse(req.params);
       await this.subscriptionService.confirmSubscription({ token });
@@ -30,7 +30,7 @@ export class SubscriptionWebController {
     }
   };
 
-  unsubscribe = async (req: Request, res: Response) => {
+  unsubscribe = async (req: Request, res: Response): Promise<void> => {
     try {
       const { token } = tokenParamSchema.parse(req.params);
       await this.subscriptionService.unsubscribeByToken({ token });

@@ -11,25 +11,25 @@ import { toSubscriptionDto } from '../subscription.mapper';
 export class SubscriptionRestController {
   constructor(private readonly subscriptionService: SubscriptionService) {}
 
-  subscribe = async (req: Request, res: Response) => {
+  subscribe = async (req: Request, res: Response): Promise<void> => {
     const { email, repo } = subscribeSchema.parse(req.body);
     await this.subscriptionService.subscribe({ email, repo });
     res.json({ message: MESSAGES.SUBSCRIBE_SUCCESS });
   };
 
-  confirm = async (req: Request, res: Response) => {
+  confirm = async (req: Request, res: Response): Promise<void> => {
     const { token } = tokenParamSchema.parse(req.params);
     await this.subscriptionService.confirmSubscription({ token });
     res.json({ message: MESSAGES.CONFIRM_SUCCESS });
   };
 
-  unsubscribe = async (req: Request, res: Response) => {
+  unsubscribe = async (req: Request, res: Response): Promise<void> => {
     const { token } = tokenParamSchema.parse(req.params);
     await this.subscriptionService.unsubscribeByToken({ token });
     res.json({ message: MESSAGES.UNSUBSCRIBE_SUCCESS });
   };
 
-  getSubscriptions = async (req: Request, res: Response) => {
+  getSubscriptions = async (req: Request, res: Response): Promise<void> => {
     const { email } = subscriptionsQuerySchema.parse(req.query);
     const subscriptions =
       await this.subscriptionService.getSubscriptionsByEmail({ email });
