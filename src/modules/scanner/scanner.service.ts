@@ -4,7 +4,7 @@ import {
   getActiveRepositories,
   updateLastSeenTag,
 } from '../repository/repository.service';
-import { pinoLogger } from '../../common/logger/pino.logger';
+import { logger } from '../../common/logger';
 import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
 import { RateLimitError } from '../../common/errors';
 
@@ -29,7 +29,7 @@ export const checkReleases = async (): Promise<void> => {
           );
         } catch (error) {
           allEmailsSent = false;
-          pinoLogger.error(
+          logger.error(
             { email: sub.email, repository: repo.fullName, err: error },
             '[Scanner] Failed to notify subscriber',
           );
@@ -37,7 +37,7 @@ export const checkReleases = async (): Promise<void> => {
       }
 
       if (!allEmailsSent) {
-        pinoLogger.error(
+        logger.error(
           `[Scanner] Skipping lastSeenTag update for ${repo.fullName} because one or more emails failed.`,
         );
         continue;
@@ -46,13 +46,13 @@ export const checkReleases = async (): Promise<void> => {
       await updateLastSeenTag(repo.id, latestTag);
     } catch (error) {
       if (error instanceof RateLimitError) {
-        pinoLogger.warn(
+        logger.warn(
           '[Scanner] GitHub API rate limit hit. Pausing scanner until next cron cycle.',
         );
         break;
       }
 
-      pinoLogger.error(
+      logger.error(
         { repository: repo.fullName, err: error },
         '[Scanner] Failed',
       );

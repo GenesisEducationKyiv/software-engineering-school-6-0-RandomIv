@@ -1,6 +1,6 @@
 import { createClient, type RedisClientType } from 'redis';
 import { config } from '../../config';
-import { pinoLogger } from '../logger/pino.logger';
+import { logger } from '../logger';
 
 let redisClient: RedisClientType | null = null;
 let redisConnectPromise: Promise<RedisClientType | null> | null = null;
@@ -32,14 +32,14 @@ export const getRedisClient = async (): Promise<RedisClientType | null> => {
     },
   });
   redisClient.on('error', (error: Error) => {
-    pinoLogger.error({ err: error }, '[Redis] Client error');
+    logger.error({ err: error }, '[Redis] Client error');
   });
 
   redisConnectPromise = redisClient
     .connect()
     .then(() => redisClient)
     .catch((error: unknown) => {
-      pinoLogger.error({ err: error }, '[Redis] Failed to connect');
+      logger.error({ err: error }, '[Redis] Failed to connect');
       redisDisabledUntil = Date.now() + REDIS_CONNECT_COOLDOWN_MS;
       redisClient = null;
       return null;
