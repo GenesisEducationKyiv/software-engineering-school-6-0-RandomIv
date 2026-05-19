@@ -3,7 +3,7 @@ import { mockDeep, mockReset } from 'jest-mock-extended';
 
 export const prismaMock = mockDeep<PrismaClient>();
 
-jest.mock('../../src/common/utils/db', () => ({
+jest.mock('../../src/core/db/db', () => ({
   __esModule: true,
   default: prismaMock,
 }));

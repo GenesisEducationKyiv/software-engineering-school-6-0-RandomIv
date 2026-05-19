@@ -2,21 +2,27 @@ import request from 'supertest';
 import { createApp } from '../../src/app';
 import { AppError, NotFoundError } from '../../src/common/errors';
 import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
+import { SubscriptionRestController } from '../../src/modules/subscription/controllers/subscription.rest.controller';
+import { SubscriptionWebController } from '../../src/modules/subscription/controllers/subscription.web.controller';
 import type { SubscriptionService } from '../../src/modules/subscription/subscription.service';
-import type { Subscription } from '../../src/generated/prisma/client';
-import type { SubscriptionWithRepository } from '../../src/common/types/subscription-with-repository.type';
+import type {
+  SubscriptionEntity,
+  SubscriptionWithRepositoryEntity,
+} from '../../src/common/entities';
 
 const TEST_API_KEY = 'test-api-key';
 
 describe('subscription routes integration', () => {
   const subscriptionService: SubscriptionService = {
-    createSubscription: jest.fn(),
+    subscribe: jest.fn(),
     confirmSubscription: jest.fn(),
     unsubscribeByToken: jest.fn(),
     getSubscriptionsByEmail: jest.fn(),
   };
 
-  const app = createApp({ subscriptionService });
+  const apiController = new SubscriptionRestController(subscriptionService);
+  const webController = new SubscriptionWebController(subscriptionService);
+  const app = createApp({ apiController, webController });
 
   let consoleErrorSpy: jest.SpyInstance;
 
@@ -41,7 +47,7 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Invalid API key',
       });
-      expect(subscriptionService.createSubscription).not.toHaveBeenCalled();
+      expect(subscriptionService.subscribe).not.toHaveBeenCalled();
     });
 
     it('blocks GET /api/confirm/:token without API key', async () => {
@@ -76,7 +82,7 @@ describe('subscription routes integration', () => {
 
   describe('Protected API endpoints', () => {
     it('POST /api/subscribe returns 200 for valid payload with API key', async () => {
-      const mockSubscription: Subscription = {
+      const mockSubscription: SubscriptionEntity = {
         id: 'sub-1',
         email: 'user@example.com',
         confirmed: false,
@@ -87,8 +93,8 @@ describe('subscription routes integration', () => {
       };
 
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockResolvedValueOnce(mockSubscription);
 
@@ -104,7 +110,7 @@ describe('subscription routes integration', () => {
       expect(response.body).toMatchObject({
         message: 'Subscription successful. Confirmation email sent.',
       });
-      expect(subscriptionService.createSubscription).toHaveBeenCalledWith({
+      expect(subscriptionService.subscribe).toHaveBeenCalledWith({
         email: 'user@example.com',
         repo: 'owner/repo',
       });
@@ -124,13 +130,13 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Validation failed',
       });
-      expect(subscriptionService.createSubscription).not.toHaveBeenCalled();
+      expect(subscriptionService.subscribe).not.toHaveBeenCalled();
     });
 
     it('POST /api/subscribe maps service errors', async () => {
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockRejectedValueOnce(
         new NotFoundError('Repository not found on GitHub'),
@@ -194,7 +200,7 @@ describe('subscription routes integration', () => {
     });
 
     it('GET /api/subscriptions returns mapped subscriptions with API key', async () => {
-      const mockSubscription: SubscriptionWithRepository = {
+      const mockSubscription: SubscriptionWithRepositoryEntity = {
         id: 'sub-1',
         email: 'user@example.com',
         confirmed: true,
@@ -237,7 +243,7 @@ describe('subscription routes integration', () => {
 
   describe('Public web endpoints', () => {
     it('POST /web/subscribe works without API key', async () => {
-      const mockSubscription: Subscription = {
+      const mockSubscription: SubscriptionEntity = {
         id: 'sub-1',
         email: 'user@example.com',
         confirmed: false,
@@ -248,8 +254,8 @@ describe('subscription routes integration', () => {
       };
 
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockResolvedValueOnce(mockSubscription);
 
@@ -302,8 +308,8 @@ describe('subscription routes integration', () => {
 
     it('still maps AppError responses in web routes', async () => {
       (
-        subscriptionService.createSubscription as jest.MockedFunction<
-          SubscriptionService['createSubscription']
+        subscriptionService.subscribe as jest.MockedFunction<
+          SubscriptionService['subscribe']
         >
       ).mockRejectedValueOnce(
         new AppError(409, 'Email already subscribed to this repository'),

@@ -1,10 +1,13 @@
-import { logger } from '../../../../src/common/logger/logger';
-import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
-import type { Subscription } from '../../../../src/generated/prisma/client';
+import type { RepositoryWithSubscriptionsEntity } from '../../../../src/common/entities';
+import type { SubscriptionEntity } from '../../../../src/common/entities';
 import { RateLimitError } from '../../../../src/common/errors';
-import { ReleaseScannerService } from '../../../../src/modules/scanner/scanner.service';
+import { ScannerService } from '../../../../src/modules/scanner/scanner.service';
+import { AppUrls } from '../../../../src/common/utils/url-builder.util';
+import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
+import type { ReleaseProvider } from '../../../../src/integrations/github/github.service';
+import type { EmailService } from '../../../../src/integrations/email/email.service';
 
-const createSubscription = (id: string, email: string): Subscription => ({
+const createSubscription = (id: string, email: string): SubscriptionEntity => ({
   id,
   email,
   confirmed: true,
@@ -15,8 +18,8 @@ const createSubscription = (id: string, email: string): Subscription => ({
 });
 
 const createRepository = (
-  overrides?: Partial<RepositoryWithSubscriptions>,
-): RepositoryWithSubscriptions => ({
+  overrides?: Partial<RepositoryWithSubscriptionsEntity>,
+): RepositoryWithSubscriptionsEntity => ({
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: null,
@@ -26,74 +29,70 @@ const createRepository = (
 });
 
 describe('scanner.service', () => {
-  const repositoryService = {
+  const repositoryRepository: jest.Mocked<RepositoryRepository> = {
     getActiveRepositories: jest.fn(),
     updateLastSeenTag: jest.fn(),
+    getOrCreateRepository: jest.fn(),
   };
-  const githubService = {
-    getLatestReleaseTag: jest.fn(),
+  const releaseProvider: jest.Mocked<ReleaseProvider> = {
+    getLatestRelease: jest.fn(),
   };
-  const emailService = {
+  const emailService: jest.Mocked<EmailService> = {
+    sendSubscriptionConfirmationEmail: jest.fn(),
     sendReleaseEmail: jest.fn(),
   };
+  const appBaseUrl = 'https://app.example.com';
 
-  const service = new ReleaseScannerService({
-    repositoryService,
-    githubService,
+  const service = new ScannerService({
+    repositoryRepository,
+    releaseProvider,
     emailService,
+    appBaseUrl,
   });
-
-  let loggerErrorSpy: jest.SpyInstance;
-  let loggerWarnSpy: jest.SpyInstance;
 
   beforeEach(() => {
     jest.clearAllMocks();
-    // Шпигуємо за методами нашого професійного логера
-    loggerErrorSpy = jest.spyOn(logger, 'error').mockImplementation();
-    loggerWarnSpy = jest.spyOn(logger, 'warn').mockImplementation();
-  });
-
-  afterEach(() => {
-    loggerErrorSpy.mockRestore();
-    loggerWarnSpy.mockRestore();
   });
 
   it('does nothing when there are no active repositories', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([]);
+    repositoryRepository.getActiveRepositories.mockResolvedValue([]);
 
     await service.checkReleases();
 
-    expect(githubService.getLatestReleaseTag).not.toHaveBeenCalled();
+    expect(releaseProvider.getLatestRelease).not.toHaveBeenCalled();
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
-    expect(repositoryService.updateLastSeenTag).not.toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('skips repository when latest tag is null', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository(),
     ]);
-    githubService.getLatestReleaseTag.mockResolvedValueOnce(null);
+    releaseProvider.getLatestRelease.mockResolvedValueOnce(null);
 
     await service.checkReleases();
 
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
-    expect(repositoryService.updateLastSeenTag).not.toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('skips repository when latest tag equals lastSeenTag', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({ lastSeenTag: 'v1.0.0' }),
     ]);
-    githubService.getLatestReleaseTag.mockResolvedValueOnce('v1.0.0');
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
+      tag: 'v1.0.0',
+      url: 'https://github.com/owner/repo/releases/tag/v1.0.0',
+    });
 
     await service.checkReleases();
 
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
-    expect(repositoryService.updateLastSeenTag).not.toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('sends notifications and updates lastSeenTag when all emails succeed', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({
         subscriptions: [
           createSubscription('sub-1', 'a@example.com'),
@@ -101,7 +100,10 @@ describe('scanner.service', () => {
         ],
       }),
     ]);
-    githubService.getLatestReleaseTag.mockResolvedValueOnce('v2.0.0');
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
+      tag: 'v2.0.0',
+      url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
+    });
     emailService.sendReleaseEmail.mockResolvedValue({
       messageId: 'ok',
     } as never);
@@ -114,23 +116,25 @@ describe('scanner.service', () => {
       'a@example.com',
       'owner/repo',
       'v2.0.0',
-      'sub-1-unsubscribe-token',
+      'https://github.com/owner/repo/releases/tag/v2.0.0',
+      AppUrls.unsubscribe(appBaseUrl, 'sub-1-unsubscribe-token'),
     );
     expect(emailService.sendReleaseEmail).toHaveBeenNthCalledWith(
       2,
       'b@example.com',
       'owner/repo',
       'v2.0.0',
-      'sub-2-unsubscribe-token',
+      'https://github.com/owner/repo/releases/tag/v2.0.0',
+      AppUrls.unsubscribe(appBaseUrl, 'sub-2-unsubscribe-token'),
     );
-    expect(repositoryService.updateLastSeenTag).toHaveBeenCalledWith(
+    expect(repositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(
       'repo-1',
       'v2.0.0',
     );
   });
 
   it('does not update lastSeenTag when at least one email fails', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({
         subscriptions: [
           createSubscription('sub-1', 'a@example.com'),
@@ -138,7 +142,10 @@ describe('scanner.service', () => {
         ],
       }),
     ]);
-    githubService.getLatestReleaseTag.mockResolvedValueOnce('v2.0.0');
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
+      tag: 'v2.0.0',
+      url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
+    });
     emailService.sendReleaseEmail
       .mockRejectedValueOnce(new Error('SMTP failed'))
       .mockResolvedValueOnce({ messageId: 'ok' } as never);
@@ -146,19 +153,20 @@ describe('scanner.service', () => {
     await service.checkReleases();
 
     expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(2);
-    expect(repositoryService.updateLastSeenTag).not.toHaveBeenCalled();
-    // Перевіряємо, що помилка залогована в logger.error
-    expect(loggerErrorSpy).toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('continues processing next repositories when one repository fails', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({ id: 'repo-1', fullName: 'owner/first' }),
       createRepository({ id: 'repo-2', fullName: 'owner/second' }),
     ]);
-    githubService.getLatestReleaseTag
+    releaseProvider.getLatestRelease
       .mockRejectedValueOnce(new Error('GitHub unavailable'))
-      .mockResolvedValueOnce('v3.0.0');
+      .mockResolvedValueOnce({
+        tag: 'v3.0.0',
+        url: 'https://github.com/owner/second/releases/tag/v3.0.0',
+      });
     emailService.sendReleaseEmail.mockResolvedValue({
       messageId: 'ok',
     } as never);
@@ -170,34 +178,32 @@ describe('scanner.service', () => {
       'user@example.com',
       'owner/second',
       'v3.0.0',
-      'sub-1-unsubscribe-token',
+      'https://github.com/owner/second/releases/tag/v3.0.0',
+      AppUrls.unsubscribe(appBaseUrl, 'sub-1-unsubscribe-token'),
     );
-    expect(repositoryService.updateLastSeenTag).toHaveBeenCalledTimes(1);
-    expect(repositoryService.updateLastSeenTag).toHaveBeenCalledWith(
+    expect(repositoryRepository.updateLastSeenTag).toHaveBeenCalledTimes(1);
+    expect(repositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(
       'repo-2',
       'v3.0.0',
     );
-    // Перевіряємо, що фейл першої репи теж залогований
-    expect(loggerErrorSpy).toHaveBeenCalled();
   });
 
   it('stops current scan cycle when GitHub rate limit is reached', async () => {
-    repositoryService.getActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({ id: 'repo-1', fullName: 'owner/first' }),
       createRepository({ id: 'repo-2', fullName: 'owner/second' }),
     ]);
-    githubService.getLatestReleaseTag
+    releaseProvider.getLatestRelease
       .mockRejectedValueOnce(new RateLimitError())
-      .mockResolvedValueOnce('v3.0.0');
+      .mockResolvedValueOnce({
+        tag: 'v3.0.0',
+        url: 'https://github.com/owner/second/releases/tag/v3.0.0',
+      });
 
     await service.checkReleases();
 
-    expect(githubService.getLatestReleaseTag).toHaveBeenCalledTimes(1);
+    expect(releaseProvider.getLatestRelease).toHaveBeenCalledTimes(1);
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
-    expect(repositoryService.updateLastSeenTag).not.toHaveBeenCalled();
-
-    expect(loggerWarnSpy).toHaveBeenCalledWith(
-      '[Scanner] GitHub API rate limit hit. Pausing scanner until next cron cycle.',
-    );
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 });

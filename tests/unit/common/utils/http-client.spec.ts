@@ -4,7 +4,7 @@ import {
   NotFoundError,
   RateLimitError,
 } from '../../../../src/common/errors';
-import { httpClient } from '../../../../src/common/utils/http-client';
+import { httpClient } from '../../../../src/common/utils/http-client.util';
 
 describe('http-client', () => {
   let fetchSpy: jest.SpiedFunction<typeof fetch>;

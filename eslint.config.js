@@ -1,17 +1,16 @@
+const { defineConfig } = require('eslint/config');
+const js = require('@eslint/js');
 const tseslint = require('typescript-eslint');
-const prettierPlugin = require('eslint-plugin-prettier');
-const eslintConfigPrettier = require('eslint-config-prettier');
-
-const scopeToTypeScript = (config) =>
-  config.files ? config : { ...config, files: ['**/*.ts'] };
-
-module.exports = [
+const prettierRecommended = require('eslint-plugin-prettier/recommended');
+module.exports = defineConfig([
   {
     ignores: [
       'node_modules/**',
       'dist/**',
       'coverage/**',
       '**/src/generated/**',
+      '**/*.js',
+      '**/*.cjs',
     ],
   },
   {
@@ -19,30 +18,27 @@ module.exports = [
       reportUnusedDisableDirectives: 'error',
     },
   },
-  ...tseslint.configs.recommended.map(scopeToTypeScript),
-  ...tseslint.configs.recommendedTypeCheckedOnly.map(scopeToTypeScript),
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
+  ...tseslint.configs.recommendedTypeCheckedOnly,
   {
     files: ['**/*.ts'],
     languageOptions: {
-      parser: tseslint.parser,
       ecmaVersion: 'latest',
       sourceType: 'module',
       parserOptions: {
-        project: './tsconfig.eslint.json',
+        projectService: {
+          allowDefaultProject: ['prisma.config.ts'],
+        },
         tsconfigRootDir: __dirname,
       },
     },
-    plugins: {
-      '@typescript-eslint': tseslint.plugin,
-      prettier: prettierPlugin,
-    },
     rules: {
-      'prettier/prettier': 'error',
       '@typescript-eslint/no-unused-vars': [
         'error',
         { argsIgnorePattern: '^_' },
       ],
-      'no-console': 'warn',
+      'no-console': 'error',
       eqeqeq: ['error', 'always'],
       'no-var': 'error',
       'prefer-const': 'error',
@@ -75,5 +71,5 @@ module.exports = [
       '@typescript-eslint/unbound-method': 'off',
     },
   },
-  eslintConfigPrettier,
-];
+  prettierRecommended,
+]);

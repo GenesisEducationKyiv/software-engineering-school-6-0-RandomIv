@@ -1,20 +1,23 @@
-import {
-  Prisma,
-  type Repository,
-  type Subscription,
-} from '../../../../src/generated/prisma/client';
+import type {
+  RepositoryEntity,
+  SubscriptionEntity,
+} from '../../../../src/common/entities';
 import { ConflictError, NotFoundError } from '../../../../src/common/errors';
 import { SubscriptionApplicationService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepository } from '../../../../src/modules/subscription/subscription.repository';
+import { AppUrls } from '../../../../src/common/utils/url-builder.util';
+import type { RepositoryProvider } from '../../../../src/integrations/github/github.service';
+import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
+import type { EmailService } from '../../../../src/integrations/email/email.service';
 
-const repositoryRecord: Repository = {
+const repositoryRecord: RepositoryEntity = {
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: null,
   updatedAt: new Date('2024-01-01T00:00:00.000Z'),
 };
 
-const subscriptionRecord: Subscription = {
+const subscriptionRecord: SubscriptionEntity = {
   id: 'sub-1',
   email: 'test@example.com',
   confirmed: false,
@@ -33,21 +36,29 @@ describe('subscription.service', () => {
     findByEmail: jest.fn(),
   };
 
-  const githubService = {
+  const repositoryProvider: jest.Mocked<RepositoryProvider> = {
     checkRepoExists: jest.fn(),
   };
-  const repositoryService = {
+
+  const repositoryRepository: jest.Mocked<RepositoryRepository> = {
     getOrCreateRepository: jest.fn(),
+    getActiveRepositories: jest.fn(),
+    updateLastSeenTag: jest.fn(),
   };
-  const emailService = {
+
+  const emailService: jest.Mocked<EmailService> = {
     sendSubscriptionConfirmationEmail: jest.fn(),
+    sendReleaseEmail: jest.fn(),
   };
+
+  const appBaseUrl = 'https://app.example.com';
 
   const service = new SubscriptionApplicationService({
     subscriptionRepository,
-    githubService,
-    repositoryService,
+    repositoryProvider,
+    repositoryRepository,
     emailService,
+    appBaseUrl,
   });
 
   beforeEach(() => {
@@ -56,75 +67,82 @@ describe('subscription.service', () => {
 
   describe('createSubscription', () => {
     it('creates subscription and sends confirmation email', async () => {
-      githubService.checkRepoExists.mockResolvedValue(true);
-      repositoryService.getOrCreateRepository.mockResolvedValue(
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
+
+      repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
       );
+
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
+
       emailService.sendSubscriptionConfirmationEmail.mockResolvedValue(
         {} as never,
       );
 
-      const result = await service.createSubscription({
+      const result = await service.subscribe({
         email: 'test@example.com',
         repo: 'owner/repo',
       });
 
       expect(result).toEqual(subscriptionRecord);
-      expect(githubService.checkRepoExists).toHaveBeenCalledWith('owner/repo');
-      expect(repositoryService.getOrCreateRepository).toHaveBeenCalledWith(
+
+      expect(repositoryProvider.checkRepoExists).toHaveBeenCalledWith(
         'owner/repo',
       );
+
+      expect(repositoryRepository.getOrCreateRepository).toHaveBeenCalledWith(
+        'owner/repo',
+      );
+
       expect(subscriptionRepository.createSubscription).toHaveBeenCalledWith({
         email: 'test@example.com',
         confirmed: false,
         repositoryId: repositoryRecord.id,
       });
+
       expect(
         emailService.sendSubscriptionConfirmationEmail,
       ).toHaveBeenCalledWith(
         'test@example.com',
         'owner/repo',
-        subscriptionRecord.confirmationToken,
-        subscriptionRecord.unsubscribeToken,
+        AppUrls.confirm(appBaseUrl, subscriptionRecord.confirmationToken),
+        AppUrls.unsubscribe(appBaseUrl, subscriptionRecord.unsubscribeToken),
       );
     });
 
     it('throws NotFoundError when repository does not exist', async () => {
-      githubService.checkRepoExists.mockResolvedValue(false);
+      repositoryProvider.checkRepoExists.mockResolvedValue(false);
 
       await expect(
-        service.createSubscription({
+        service.subscribe({
           email: 'test@example.com',
           repo: 'owner/repo',
         }),
       ).rejects.toThrow(NotFoundError);
 
-      expect(repositoryService.getOrCreateRepository).not.toHaveBeenCalled();
+      expect(repositoryRepository.getOrCreateRepository).not.toHaveBeenCalled();
+
       expect(subscriptionRepository.createSubscription).not.toHaveBeenCalled();
+
       expect(
         emailService.sendSubscriptionConfirmationEmail,
       ).not.toHaveBeenCalled();
     });
 
-    it('maps Prisma P2002 to ConflictError', async () => {
-      githubService.checkRepoExists.mockResolvedValue(true);
-      repositoryService.getOrCreateRepository.mockResolvedValue(
+    it('propagates ConflictError from repository if email already subscribed', async () => {
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
+
+      repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
       );
+
       subscriptionRepository.createSubscription.mockRejectedValue(
-        new Prisma.PrismaClientKnownRequestError(
-          'Unique constraint failed on the fields: (`email`,`repository_id`)',
-          {
-            code: 'P2002',
-            clientVersion: 'test',
-          } as never,
-        ),
+        new ConflictError('Email already subscribed to this repository'),
       );
 
-      const createPromise = service.createSubscription({
+      const createPromise = service.subscribe({
         email: 'test@example.com',
         repo: 'owner/repo',
       });
@@ -133,25 +151,31 @@ describe('subscription.service', () => {
         statusCode: 409,
         message: 'Email already subscribed to this repository',
       });
+
       await expect(createPromise).rejects.toBeInstanceOf(ConflictError);
     });
 
     it('propagates confirmation email errors', async () => {
-      githubService.checkRepoExists.mockResolvedValue(true);
-      repositoryService.getOrCreateRepository.mockResolvedValue(
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
+
+      repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
       );
+
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
+
       const emailError = new Error('SMTP down');
+
       emailService.sendSubscriptionConfirmationEmail.mockRejectedValue(
         emailError,
       );
+
       subscriptionRepository.deleteByUnsubscribeToken.mockResolvedValue(1);
 
       await expect(
-        service.createSubscription({
+        service.subscribe({
           email: 'test@example.com',
           repo: 'owner/repo',
         }),
@@ -203,6 +227,7 @@ describe('subscription.service', () => {
       expect(
         subscriptionRepository.findByConfirmationToken,
       ).toHaveBeenCalledWith(subscriptionRecord.confirmationToken);
+
       expect(subscriptionRepository.updateConfirmation).toHaveBeenCalledWith(
         subscriptionRecord.id,
       );
@@ -279,6 +304,7 @@ describe('subscription.service', () => {
         'test@example.com',
         true,
       );
+
       expect(result).toEqual([
         {
           ...subscriptionRecord,
