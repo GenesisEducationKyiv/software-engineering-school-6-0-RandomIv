@@ -21,7 +21,7 @@ export interface DependencyContainer {
 }
 
 export const createDependencyContainer = (): DependencyContainer => {
-  const githubService = new GitHubApiService(githubHttpClient);
+  const githubApiService = new GitHubApiService(githubHttpClient);
   const emailService = new NodemailerService({
     transporter: nodemailer.createTransport({
       service: 'gmail',
@@ -33,19 +33,21 @@ export const createDependencyContainer = (): DependencyContainer => {
     emailUser: config.EMAIL_USER,
   });
   const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
-  const repositoryService = new PrismaRepositoryRepository(prisma);
+  const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
+
   const subscriptionService = new SubscriptionApplicationService({
     subscriptionRepository,
-    githubService,
-    repositoryService,
+    repositoryProvider: githubApiService,
+    repositoryRepository,
     emailService,
     appBaseUrl,
   });
+
   const scannerService = new ReleaseScannerService({
-    githubService,
+    releaseProvider: githubApiService,
     emailService,
-    repositoryRepository: repositoryService,
+    repositoryRepository,
     appBaseUrl,
   });
 

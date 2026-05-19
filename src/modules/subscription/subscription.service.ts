@@ -1,4 +1,4 @@
-import { GitHubService } from '../../integrations/github/github.service';
+import { RepositoryProvider } from '../../integrations/github/github.service';
 import {
   SubscribeDto,
   SubscriptionsQueryDto,
@@ -14,7 +14,7 @@ import { AppUrls } from '../../common/utils/url-builder.util';
 
 export interface SubscriptionServiceDependencies {
   subscriptionRepository: SubscriptionRepository;
-  githubService: GitHubService;
+  repositoryProvider: RepositoryProvider;
   repositoryRepository: RepositoryRepository;
   emailService: EmailService;
   appBaseUrl: string;
@@ -31,14 +31,14 @@ export interface SubscriptionService {
 
 export class SubscriptionApplicationService implements SubscriptionService {
   private readonly subscriptionRepository: SubscriptionRepository;
-  private readonly githubService: GitHubService;
+  private readonly repositoryProvider: RepositoryProvider;
   private readonly repositoryRepository: RepositoryRepository;
   private readonly emailService: EmailService;
   private readonly appBaseUrl: string;
 
   constructor(dependencies: SubscriptionServiceDependencies) {
     this.subscriptionRepository = dependencies.subscriptionRepository;
-    this.githubService = dependencies.githubService;
+    this.repositoryProvider = dependencies.repositoryProvider;
     this.repositoryRepository = dependencies.repositoryRepository;
     this.emailService = dependencies.emailService;
     this.appBaseUrl = dependencies.appBaseUrl;
@@ -92,7 +92,7 @@ export class SubscriptionApplicationService implements SubscriptionService {
   }
 
   private async validateRepositoryExists(repo: string): Promise<void> {
-    const repoExists = await this.githubService.checkRepoExists(repo);
+    const repoExists = await this.repositoryProvider.checkRepoExists(repo);
     if (!repoExists) {
       throw new NotFoundError('Repository not found on GitHub');
     }

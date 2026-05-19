@@ -1,5 +1,5 @@
 import { logger } from '../../core/logger';
-import { GitHubService } from '../../integrations/github/github.service';
+import { ReleaseProvider } from '../../integrations/github/github.service';
 import { EmailService } from '../../integrations/email/email.service';
 import { RepositoryRepository } from '../repository/repository.repository';
 import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
@@ -7,7 +7,7 @@ import { RateLimitError } from '../../common/errors';
 import { AppUrls } from '../../common/utils/url-builder.util';
 
 export interface ReleaseScannerDependencies {
-  githubService: GitHubService;
+  releaseProvider: ReleaseProvider;
   emailService: EmailService;
   repositoryRepository: RepositoryRepository;
   appBaseUrl: string;
@@ -18,13 +18,13 @@ export interface ScannerService {
 }
 
 export class ReleaseScannerService implements ScannerService {
-  private readonly githubService: GitHubService;
+  private readonly releaseProvider: ReleaseProvider;
   private readonly emailService: EmailService;
   private readonly repositoryRepository: RepositoryRepository;
   private readonly appBaseUrl: string;
 
   constructor(dependencies: ReleaseScannerDependencies) {
-    this.githubService = dependencies.githubService;
+    this.releaseProvider = dependencies.releaseProvider;
     this.emailService = dependencies.emailService;
     this.repositoryRepository = dependencies.repositoryRepository;
     this.appBaseUrl = dependencies.appBaseUrl;
@@ -36,7 +36,7 @@ export class ReleaseScannerService implements ScannerService {
 
     for (const repo of repositories) {
       try {
-        const latestRelease = await this.githubService.getLatestRelease(
+        const latestRelease = await this.releaseProvider.getLatestRelease(
           repo.fullName,
         );
         if (!latestRelease || latestRelease.tag === repo.lastSeenTag) continue;

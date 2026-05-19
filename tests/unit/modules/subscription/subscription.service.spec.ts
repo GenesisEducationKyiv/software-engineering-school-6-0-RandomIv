@@ -6,6 +6,9 @@ import { ConflictError, NotFoundError } from '../../../../src/common/errors';
 import { SubscriptionApplicationService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepository } from '../../../../src/modules/subscription/subscription.repository';
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
+import type { RepositoryProvider } from '../../../../src/integrations/github/github.service';
+import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
+import type { EmailService } from '../../../../src/integrations/email/email.service';
 
 const repositoryRecord: Repository = {
   id: 'repo-1',
@@ -33,18 +36,17 @@ describe('subscription.service', () => {
     findByEmail: jest.fn(),
   };
 
-  const githubService = {
+  const repositoryProvider: jest.Mocked<RepositoryProvider> = {
     checkRepoExists: jest.fn(),
-    getLatestRelease: jest.fn(),
   };
 
-  const repositoryRepository = {
+  const repositoryRepository: jest.Mocked<RepositoryRepository> = {
     getOrCreateRepository: jest.fn(),
     getActiveRepositories: jest.fn(),
     updateLastSeenTag: jest.fn(),
   };
 
-  const emailService = {
+  const emailService: jest.Mocked<EmailService> = {
     sendSubscriptionConfirmationEmail: jest.fn(),
     sendReleaseEmail: jest.fn(),
   };
@@ -53,7 +55,7 @@ describe('subscription.service', () => {
 
   const service = new SubscriptionApplicationService({
     subscriptionRepository,
-    githubService,
+    repositoryProvider,
     repositoryRepository,
     emailService,
     appBaseUrl,
@@ -65,7 +67,7 @@ describe('subscription.service', () => {
 
   describe('createSubscription', () => {
     it('creates subscription and sends confirmation email', async () => {
-      githubService.checkRepoExists.mockResolvedValue(true);
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
 
       repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
@@ -86,7 +88,9 @@ describe('subscription.service', () => {
 
       expect(result).toEqual(subscriptionRecord);
 
-      expect(githubService.checkRepoExists).toHaveBeenCalledWith('owner/repo');
+      expect(repositoryProvider.checkRepoExists).toHaveBeenCalledWith(
+        'owner/repo',
+      );
 
       expect(repositoryRepository.getOrCreateRepository).toHaveBeenCalledWith(
         'owner/repo',
@@ -109,7 +113,7 @@ describe('subscription.service', () => {
     });
 
     it('throws NotFoundError when repository does not exist', async () => {
-      githubService.checkRepoExists.mockResolvedValue(false);
+      repositoryProvider.checkRepoExists.mockResolvedValue(false);
 
       await expect(
         service.subscribe({
@@ -128,7 +132,7 @@ describe('subscription.service', () => {
     });
 
     it('propagates ConflictError from repository if email already subscribed', async () => {
-      githubService.checkRepoExists.mockResolvedValue(true);
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
 
       repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
@@ -152,7 +156,7 @@ describe('subscription.service', () => {
     });
 
     it('propagates confirmation email errors', async () => {
-      githubService.checkRepoExists.mockResolvedValue(true);
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
 
       repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,

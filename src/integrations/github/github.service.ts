@@ -3,14 +3,17 @@ import { GitHubReleaseResponse, githubReleaseSchema } from './github.schema';
 
 type GitHubRequest = <T>(endpoint: string) => Promise<T>;
 
-export interface GitHubService {
+export interface RepositoryProvider {
   checkRepoExists(repository: string): Promise<boolean>;
+}
+
+export interface ReleaseProvider {
   getLatestRelease(
     repository: string,
   ): Promise<{ tag: string; url: string } | null>;
 }
 
-export class GitHubApiService implements GitHubService {
+export class GitHubApiService implements RepositoryProvider, ReleaseProvider {
   constructor(private readonly request: GitHubRequest) {}
 
   async checkRepoExists(repository: string): Promise<boolean> {

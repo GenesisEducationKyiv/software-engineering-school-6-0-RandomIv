@@ -4,7 +4,7 @@ import { RateLimitError } from '../../../../src/common/errors';
 import { ReleaseScannerService } from '../../../../src/modules/scanner/scanner.service';
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
-import type { GitHubService } from '../../../../src/integrations/github/github.service';
+import type { ReleaseProvider } from '../../../../src/integrations/github/github.service';
 import type { EmailService } from '../../../../src/integrations/email/email.service';
 
 const createSubscription = (id: string, email: string): Subscription => ({
@@ -34,8 +34,7 @@ describe('scanner.service', () => {
     updateLastSeenTag: jest.fn(),
     getOrCreateRepository: jest.fn(),
   };
-  const githubService: jest.Mocked<GitHubService> = {
-    checkRepoExists: jest.fn(),
+  const releaseProvider: jest.Mocked<ReleaseProvider> = {
     getLatestRelease: jest.fn(),
   };
   const emailService: jest.Mocked<EmailService> = {
@@ -46,7 +45,7 @@ describe('scanner.service', () => {
 
   const service = new ReleaseScannerService({
     repositoryRepository,
-    githubService,
+    releaseProvider,
     emailService,
     appBaseUrl,
   });
@@ -60,7 +59,7 @@ describe('scanner.service', () => {
 
     await service.checkReleases();
 
-    expect(githubService.getLatestRelease).not.toHaveBeenCalled();
+    expect(releaseProvider.getLatestRelease).not.toHaveBeenCalled();
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
     expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
@@ -69,7 +68,7 @@ describe('scanner.service', () => {
     repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository(),
     ]);
-    githubService.getLatestRelease.mockResolvedValueOnce(null);
+    releaseProvider.getLatestRelease.mockResolvedValueOnce(null);
 
     await service.checkReleases();
 
@@ -81,7 +80,7 @@ describe('scanner.service', () => {
     repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({ lastSeenTag: 'v1.0.0' }),
     ]);
-    githubService.getLatestRelease.mockResolvedValueOnce({
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
       tag: 'v1.0.0',
       url: 'https://github.com/owner/repo/releases/tag/v1.0.0',
     });
@@ -101,7 +100,7 @@ describe('scanner.service', () => {
         ],
       }),
     ]);
-    githubService.getLatestRelease.mockResolvedValueOnce({
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
       tag: 'v2.0.0',
       url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
     });
@@ -143,7 +142,7 @@ describe('scanner.service', () => {
         ],
       }),
     ]);
-    githubService.getLatestRelease.mockResolvedValueOnce({
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
       tag: 'v2.0.0',
       url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
     });
@@ -162,7 +161,7 @@ describe('scanner.service', () => {
       createRepository({ id: 'repo-1', fullName: 'owner/first' }),
       createRepository({ id: 'repo-2', fullName: 'owner/second' }),
     ]);
-    githubService.getLatestRelease
+    releaseProvider.getLatestRelease
       .mockRejectedValueOnce(new Error('GitHub unavailable'))
       .mockResolvedValueOnce({
         tag: 'v3.0.0',
@@ -194,7 +193,7 @@ describe('scanner.service', () => {
       createRepository({ id: 'repo-1', fullName: 'owner/first' }),
       createRepository({ id: 'repo-2', fullName: 'owner/second' }),
     ]);
-    githubService.getLatestRelease
+    releaseProvider.getLatestRelease
       .mockRejectedValueOnce(new RateLimitError())
       .mockResolvedValueOnce({
         tag: 'v3.0.0',
@@ -203,7 +202,7 @@ describe('scanner.service', () => {
 
     await service.checkReleases();
 
-    expect(githubService.getLatestRelease).toHaveBeenCalledTimes(1);
+    expect(releaseProvider.getLatestRelease).toHaveBeenCalledTimes(1);
     expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
     expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
