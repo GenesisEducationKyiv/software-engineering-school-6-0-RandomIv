@@ -5,6 +5,7 @@ import { logger } from '../../core/logger';
 import { httpClient } from '../../common/utils/http-client.util';
 import { config } from '../../config';
 import { getGitHubCacheKey } from './github.cache-keys';
+import { z } from 'zod';
 
 const GITHUB_API_BASE_URL = 'https://api.github.com/repos';
 
@@ -30,16 +31,20 @@ const isGitHubRateLimitError = (error: unknown): boolean => {
   return error.message.toLowerCase().includes('rate limit');
 };
 
-export const githubHttpClient = async <T>(path: string): Promise<T> => {
+export const githubHttpClient = async <T>(
+  path: string,
+  schema?: z.ZodSchema<T>,
+): Promise<T> => {
   const normalizedPath = path.replace(/^\/+/, '');
   const cacheKey = getGitHubCacheKey(normalizedPath);
 
   try {
     if (cacheKey) {
       try {
-        const cachedResponse = await cacheService.getJson<T>(cacheKey);
+        const cachedResponse = await cacheService.getJson<unknown>(cacheKey);
+
         if (cachedResponse !== null) {
-          return cachedResponse;
+          return schema ? schema.parse(cachedResponse) : (cachedResponse as T);
         }
       } catch (cacheError) {
         logger.error(
@@ -49,18 +54,20 @@ export const githubHttpClient = async <T>(path: string): Promise<T> => {
       }
     }
 
-    const response = await httpClient<T>(
+    const response = await httpClient<unknown>(
       `${GITHUB_API_BASE_URL}/${normalizedPath}`,
       {
         headers: getGitHubHeaders(),
       },
     );
 
+    const parsedResponse = schema ? schema.parse(response) : (response as T);
+
     if (cacheKey) {
       try {
         await cacheService.setJson(
           cacheKey,
-          response,
+          parsedResponse,
           config.GITHUB_CACHE_TTL_SECONDS,
         );
       } catch (cacheError) {
@@ -71,7 +78,7 @@ export const githubHttpClient = async <T>(path: string): Promise<T> => {
       }
     }
 
-    return response;
+    return parsedResponse;
   } catch (error) {
     if (isGitHubRateLimitError(error)) {
       throw new RateLimitError();

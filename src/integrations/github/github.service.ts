@@ -1,7 +1,11 @@
 import { NotFoundError } from '../../common/errors';
-import { GitHubReleaseResponse, githubReleaseSchema } from './github.schema';
+import { githubReleaseSchema } from './github.schema';
+import { z } from 'zod';
 
-type GitHubRequest = <T>(endpoint: string) => Promise<T>;
+type GitHubRequest = <T>(
+  endpoint: string,
+  schema?: z.ZodSchema<T>,
+) => Promise<T>;
 
 export interface RepositoryProvider {
   checkRepoExists(repository: string): Promise<boolean>;
@@ -19,6 +23,7 @@ export class GitHubApiService implements RepositoryProvider, ReleaseProvider {
   async checkRepoExists(repository: string): Promise<boolean> {
     try {
       await this.request<unknown>(repository);
+
       return true;
     } catch (error) {
       if (error instanceof NotFoundError) {
@@ -33,14 +38,14 @@ export class GitHubApiService implements RepositoryProvider, ReleaseProvider {
     repository: string,
   ): Promise<{ tag: string; url: string } | null> {
     try {
-      const data = await this.request<GitHubReleaseResponse>(
+      const data = await this.request(
         `${repository}/releases/latest`,
+        githubReleaseSchema,
       );
 
-      const parsedData = githubReleaseSchema.parse(data);
       return {
-        tag: parsedData.tag_name,
-        url: parsedData.html_url,
+        tag: data.tag_name,
+        url: data.html_url,
       };
     } catch (error) {
       if (error instanceof NotFoundError) {
