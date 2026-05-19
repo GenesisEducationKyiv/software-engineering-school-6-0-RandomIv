@@ -1,7 +1,7 @@
 import type { RepositoryWithSubscriptionsEntity } from '../../../../src/common/entities';
 import type { SubscriptionEntity } from '../../../../src/common/entities';
 import { RateLimitError } from '../../../../src/common/errors';
-import { ReleaseScannerService } from '../../../../src/modules/scanner/scanner.service';
+import { ScannerService } from '../../../../src/modules/scanner/scanner.service';
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import type { ReleaseProvider } from '../../../../src/integrations/github/github.service';
@@ -43,7 +43,7 @@ describe('scanner.service', () => {
   };
   const appBaseUrl = 'https://app.example.com';
 
-  const service = new ReleaseScannerService({
+  const service = new ScannerService({
     repositoryRepository,
     releaseProvider,
     emailService,

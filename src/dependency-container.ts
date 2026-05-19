@@ -5,23 +5,29 @@ import { githubHttpClient } from './integrations/github/github.http-client';
 import { GitHubApiService } from './integrations/github/github.service';
 import { NodemailerService } from './integrations/email/email.service';
 import { PrismaRepositoryRepository } from './modules/repository/repository.repository';
-import {
-  ReleaseScannerService,
-  ScannerService,
-} from './modules/scanner/scanner.service';
+import { ScannerService } from './modules/scanner/scanner.service';
 import {
   SubscriptionApplicationService,
   SubscriptionService,
 } from './modules/subscription/subscription.service';
 import { PrismaSubscriptionRepository } from './modules/subscription/subscription.repository';
+import { ReleaseCheckScheduler } from './scheduler/release-check.scheduler';
+import {
+  SubscriptionGrpcController,
+  createSubscriptionGrpcHandlers,
+} from './modules/subscription/controllers/subscription.grpc.controller';
+import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
 
 export interface DependencyContainer {
   subscriptionService: SubscriptionService;
   scannerService: ScannerService;
+  grpcHandlers: ReleaseNotifierHandlers;
+  scheduler: ReleaseCheckScheduler;
 }
 
 export const createDependencyContainer = (): DependencyContainer => {
   const githubApiService = new GitHubApiService(githubHttpClient);
+
   const emailService = new NodemailerService({
     transporter: nodemailer.createTransport({
       service: 'gmail',
@@ -32,7 +38,9 @@ export const createDependencyContainer = (): DependencyContainer => {
     }),
     emailUser: config.EMAIL_USER,
   });
+
   const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
+
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
 
@@ -44,15 +52,29 @@ export const createDependencyContainer = (): DependencyContainer => {
     appBaseUrl,
   });
 
-  const scannerService = new ReleaseScannerService({
+  const scannerService = new ScannerService({
     releaseProvider: githubApiService,
     emailService,
     repositoryRepository,
     appBaseUrl,
   });
 
+  const grpcController = new SubscriptionGrpcController(
+    subscriptionService,
+    config.API_KEY,
+  );
+
+  const grpcHandlers = createSubscriptionGrpcHandlers(grpcController);
+
+  const scheduler = new ReleaseCheckScheduler(
+    scannerService,
+    config.RELEASE_CHECK_CRON,
+  );
+
   return {
     subscriptionService,
     scannerService,
+    grpcHandlers,
+    scheduler,
   };
 };

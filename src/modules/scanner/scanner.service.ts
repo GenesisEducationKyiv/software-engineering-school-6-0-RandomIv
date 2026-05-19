@@ -13,11 +13,7 @@ export interface ReleaseScannerDependencies {
   appBaseUrl: string;
 }
 
-export interface ScannerService {
-  checkReleases(): Promise<void>;
-}
-
-export class ReleaseScannerService implements ScannerService {
+export class ScannerService {
   private readonly releaseProvider: ReleaseProvider;
   private readonly emailService: EmailService;
   private readonly repositoryRepository: RepositoryRepository;

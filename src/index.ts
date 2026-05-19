@@ -5,11 +5,6 @@ import { createApp } from './app';
 import { config } from './config';
 import { logger } from './core/logger';
 import { createDependencyContainer } from './dependency-container';
-import { ReleaseCheckScheduler } from './scheduler/release-check.scheduler';
-import {
-  SubscriptionGrpcController,
-  createSubscriptionGrpcHandlers,
-} from './modules/subscription/controllers/subscription.grpc.controller';
 import { startGrpcServer } from './core/grpc/grpc.server';
 
 const PORT = config.PORT;
@@ -100,6 +95,7 @@ const setupGracefulShutdown = (): void => {
 
 const bootstrap = async (): Promise<void> => {
   const dependencyContainer = createDependencyContainer();
+
   const app = createApp({
     subscriptionService: dependencyContainer.subscriptionService,
   });
@@ -108,17 +104,9 @@ const bootstrap = async (): Promise<void> => {
     logger.info(`Server is running on port ${PORT}`);
   });
 
-  const grpcController = new SubscriptionGrpcController(
-    dependencyContainer.subscriptionService,
-    config.API_KEY,
-  );
-  const handlers = createSubscriptionGrpcHandlers(grpcController);
-  grpcServer = await startGrpcServer(handlers);
+  grpcServer = await startGrpcServer(dependencyContainer.grpcHandlers);
 
-  releaseCheckTask = new ReleaseCheckScheduler(
-    dependencyContainer.scannerService,
-    config.RELEASE_CHECK_CRON,
-  ).start();
+  releaseCheckTask = dependencyContainer.scheduler.start();
 
   setupGracefulShutdown();
 };
