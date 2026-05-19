@@ -4,27 +4,19 @@ import {
   SubscriptionsQueryDto,
   TokenParamDto,
 } from './subscription.schema';
-import {
-  Prisma,
-  Repository,
-  Subscription,
-} from '../../generated/prisma/client';
+import { Subscription } from '../../generated/prisma/client';
 import { SubscriptionWithRepository } from '../../common/types/subscription-with-repository.type';
 import { RepositoryRepository } from '../repository/repository.repository';
-import {
-  BadRequestError,
-  ConflictError,
-  NotFoundError,
-} from '../../common/errors';
+import { BadRequestError, NotFoundError } from '../../common/errors';
 import { EmailService } from '../../integrations/email/email.service';
 import { SubscriptionRepository } from './subscription.repository';
 import { AppUrls } from '../../common/utils/url-builder.util';
 
-interface SubscriptionServiceDependencies {
+export interface SubscriptionServiceDependencies {
   subscriptionRepository: SubscriptionRepository;
-  githubService: Pick<GitHubService, 'checkRepoExists'>;
-  repositoryService: Pick<RepositoryRepository, 'getOrCreateRepository'>;
-  emailService: Pick<EmailService, 'sendSubscriptionConfirmationEmail'>;
+  githubService: GitHubService;
+  repositoryRepository: RepositoryRepository;
+  emailService: EmailService;
   appBaseUrl: string;
 }
 
@@ -39,74 +31,32 @@ export interface SubscriptionService {
 
 export class SubscriptionApplicationService implements SubscriptionService {
   private readonly subscriptionRepository: SubscriptionRepository;
-  private readonly githubService: Pick<GitHubService, 'checkRepoExists'>;
-  private readonly repositoryService: Pick<
-    RepositoryRepository,
-    'getOrCreateRepository'
-  >;
-  private readonly emailService: Pick<
-    EmailService,
-    'sendSubscriptionConfirmationEmail'
-  >;
+  private readonly githubService: GitHubService;
+  private readonly repositoryRepository: RepositoryRepository;
+  private readonly emailService: EmailService;
   private readonly appBaseUrl: string;
 
   constructor(dependencies: SubscriptionServiceDependencies) {
     this.subscriptionRepository = dependencies.subscriptionRepository;
     this.githubService = dependencies.githubService;
-    this.repositoryService = dependencies.repositoryService;
+    this.repositoryRepository = dependencies.repositoryRepository;
     this.emailService = dependencies.emailService;
     this.appBaseUrl = dependencies.appBaseUrl;
   }
 
   async subscribe({ email, repo }: SubscribeDto): Promise<Subscription> {
-    const repoExists = await this.githubService.checkRepoExists(repo);
+    await this.validateRepositoryExists(repo);
 
-    if (!repoExists) {
-      throw new NotFoundError('Repository not found on GitHub');
-    }
+    const repoRecord =
+      await this.repositoryRepository.getOrCreateRepository(repo);
 
-    const repoRecord: Repository =
-      await this.repositoryService.getOrCreateRepository(repo);
-    let subscription: Subscription;
+    const subscription = await this.subscriptionRepository.createSubscription({
+      email,
+      confirmed: false,
+      repositoryId: repoRecord.id,
+    });
 
-    try {
-      subscription = await this.subscriptionRepository.createSubscription({
-        email,
-        confirmed: false,
-        repositoryId: repoRecord.id,
-      });
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        throw new ConflictError('Email already subscribed to this repository');
-      }
-      throw error;
-    }
-
-    try {
-      const confirmationUrl = AppUrls.confirm(
-        this.appBaseUrl,
-        subscription.confirmationToken,
-      );
-      const unsubscribeUrl = AppUrls.unsubscribe(
-        this.appBaseUrl,
-        subscription.unsubscribeToken,
-      );
-
-      await this.emailService.sendSubscriptionConfirmationEmail(
-        email,
-        repo,
-        confirmationUrl,
-        unsubscribeUrl,
-      );
-    } catch (error) {
-      await this.subscriptionRepository.deleteByUnsubscribeToken(
-        subscription.unsubscribeToken,
-      );
-      throw error;
-    }
+    await this.notifyAndHandleRollback(subscription, repo, email);
 
     return subscription;
   }
@@ -139,5 +89,41 @@ export class SubscriptionApplicationService implements SubscriptionService {
     email,
   }: SubscriptionsQueryDto): Promise<SubscriptionWithRepository[]> {
     return this.subscriptionRepository.findByEmail(email, true);
+  }
+
+  private async validateRepositoryExists(repo: string): Promise<void> {
+    const repoExists = await this.githubService.checkRepoExists(repo);
+    if (!repoExists) {
+      throw new NotFoundError('Repository not found on GitHub');
+    }
+  }
+
+  private async notifyAndHandleRollback(
+    subscription: Subscription,
+    repo: string,
+    email: string,
+  ): Promise<void> {
+    try {
+      const confirmationUrl = AppUrls.confirm(
+        this.appBaseUrl,
+        subscription.confirmationToken,
+      );
+      const unsubscribeUrl = AppUrls.unsubscribe(
+        this.appBaseUrl,
+        subscription.unsubscribeToken,
+      );
+
+      await this.emailService.sendSubscriptionConfirmationEmail(
+        email,
+        repo,
+        confirmationUrl,
+        unsubscribeUrl,
+      );
+    } catch (error) {
+      await this.subscriptionRepository.deleteByUnsubscribeToken(
+        subscription.unsubscribeToken,
+      );
+      throw error;
+    }
   }
 }
