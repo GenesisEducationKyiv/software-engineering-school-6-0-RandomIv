@@ -3,8 +3,9 @@ export const releaseEmailTemplate = (
   version: string,
   releaseUrl: string,
   unsubscribeUrl: string,
-): { text: string; html: string } => {
+): { subject: string; text: string; html: string } => {
   return {
+    subject: `New release in ${repository}: ${version}`,
     text: `Hello!\n\nA new version has just been released in the ${repository} repository: ${version}.\n\nView release: ${releaseUrl}\n\nUnsubscribe: ${unsubscribeUrl}`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">

@@ -51,7 +51,7 @@ export class NodemailerService implements EmailService {
       await this.transporter.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
-        subject: `Confirm subscription for ${repository}`,
+        subject: template.subject,
         text: template.text,
         html: template.html,
       });
@@ -82,7 +82,7 @@ export class NodemailerService implements EmailService {
       await this.transporter.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
-        subject: `New release in ${repository}: ${version}`,
+        subject: template.subject,
         text: template.text,
         html: template.html,
       });

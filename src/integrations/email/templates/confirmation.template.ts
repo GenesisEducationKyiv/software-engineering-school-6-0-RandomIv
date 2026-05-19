@@ -2,8 +2,9 @@ export const confirmationEmailTemplate = (
   repository: string,
   confirmationUrl: string,
   unsubscribeUrl: string,
-): { text: string; html: string } => {
+): { subject: string; text: string; html: string } => {
   return {
+    subject: `Confirm subscription for ${repository}`,
     text: `Hello!\n\nPlease confirm your subscription for ${repository} release notifications:\n${confirmationUrl}\n\nIf you did not request this, you can unsubscribe here:\n${unsubscribeUrl}`,
     html: `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #333;">
