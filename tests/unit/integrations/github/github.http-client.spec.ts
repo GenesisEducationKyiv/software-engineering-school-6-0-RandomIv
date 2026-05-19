@@ -4,18 +4,18 @@ const mockHttpClient = jest.fn();
 const mockGetJson = jest.fn();
 const mockSetJson = jest.fn();
 
-type LoadGithubUtilsOptions = {
+type LoadGithubHttpClientOptions = {
   token?: string;
   cacheTtl?: number;
 };
 
-const loadGithubUtils = async ({
+const loadGithubHttpClient = async ({
   token,
   cacheTtl = 600,
-}: LoadGithubUtilsOptions = {}) => {
+}: LoadGithubHttpClientOptions = {}) => {
   jest.resetModules();
 
-  jest.doMock('../../../../src/common/utils/http-client', () => ({
+  jest.doMock('../../../../src/common/utils/http-client.util', () => ({
     httpClient: mockHttpClient,
   }));
 
@@ -33,10 +33,10 @@ const loadGithubUtils = async ({
     },
   }));
 
-  return import('../../../../src/integrations/github/github.utils');
+  return import('../../../../src/integrations/github/github.http-client');
 };
 
-describe('github.utils', () => {
+describe('github.http-client', () => {
   let consoleErrorSpy: jest.SpyInstance;
 
   beforeEach(() => {
@@ -53,7 +53,7 @@ describe('github.utils', () => {
   });
 
   it('calls httpClient with normalized path and empty headers when token is missing', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     mockHttpClient.mockResolvedValueOnce({ ok: true });
 
     await githubHttpClient('owner/repo');
@@ -67,7 +67,7 @@ describe('github.utils', () => {
   });
 
   it('removes leading slash from path', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     mockHttpClient.mockResolvedValueOnce({ ok: true });
 
     await githubHttpClient('/owner/repo');
@@ -81,7 +81,7 @@ describe('github.utils', () => {
   });
 
   it('adds authorization header when token exists', async () => {
-    const { githubHttpClient } = await loadGithubUtils({
+    const { githubHttpClient } = await loadGithubHttpClient({
       token: 'ghp_test_token',
     });
     mockHttpClient.mockResolvedValueOnce({ ok: true });
@@ -99,7 +99,7 @@ describe('github.utils', () => {
   });
 
   it('maps GitHub rate limit AppError to RateLimitError', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     const { AppError } = await import('../../../../src/common/errors');
     mockHttpClient.mockRejectedValueOnce(
       new AppError(HttpStatus.FORBIDDEN, 'API rate limit exceeded'),
@@ -112,7 +112,7 @@ describe('github.utils', () => {
   });
 
   it('rethrows non-rate-limit forbidden AppError', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     const { AppError } = await import('../../../../src/common/errors');
     const error = new AppError(HttpStatus.FORBIDDEN, 'Forbidden');
     mockHttpClient.mockRejectedValueOnce(error);
@@ -121,7 +121,7 @@ describe('github.utils', () => {
   });
 
   it('rethrows AppError with non-forbidden status even if message contains rate limit', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     const { AppError } = await import('../../../../src/common/errors');
     const error = new AppError(
       HttpStatus.INTERNAL_SERVER_ERROR,
@@ -133,7 +133,7 @@ describe('github.utils', () => {
   });
 
   it('rethrows non-AppError values', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     const error = new Error('Network failure');
     mockHttpClient.mockRejectedValueOnce(error);
 
@@ -141,7 +141,7 @@ describe('github.utils', () => {
   });
 
   it('uses cached response when present', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     mockGetJson.mockResolvedValueOnce({ tag_name: 'v1.0.0' });
 
     const result = await githubHttpClient<{ tag_name: string }>(
@@ -157,7 +157,7 @@ describe('github.utils', () => {
   });
 
   it('stores successful github response with configured ttl', async () => {
-    const { githubHttpClient } = await loadGithubUtils({
+    const { githubHttpClient } = await loadGithubHttpClient({
       cacheTtl: 600,
     });
     mockHttpClient.mockResolvedValueOnce({ tag_name: 'v2.0.0' });
@@ -175,7 +175,7 @@ describe('github.utils', () => {
   });
 
   it('continues with http call when cache read fails', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     mockGetJson.mockRejectedValueOnce(new Error('Redis read failed'));
     mockHttpClient.mockResolvedValueOnce({ ok: true });
 
@@ -184,7 +184,7 @@ describe('github.utils', () => {
   });
 
   it('returns response when cache write fails', async () => {
-    const { githubHttpClient } = await loadGithubUtils();
+    const { githubHttpClient } = await loadGithubHttpClient();
     mockHttpClient.mockResolvedValueOnce({ ok: true });
     mockSetJson.mockRejectedValueOnce(new Error('Redis write failed'));
 
