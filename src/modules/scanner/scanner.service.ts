@@ -1,4 +1,4 @@
-import { logger } from '../../core/logger/logger';
+import { logger } from '../../core/logger';
 import { GitHubService } from '../../integrations/github/github.service';
 import { EmailService } from '../../integrations/email/email.service';
 import { RepositoryRepository } from '../repository/repository.repository';

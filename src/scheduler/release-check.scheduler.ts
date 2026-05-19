@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import type { ScheduledTask } from 'node-cron';
-import { logger } from '../core/logger/logger';
+import { logger } from '../core/logger';
 import { ScannerService } from '../modules/scanner/scanner.service';
 
 export class ReleaseCheckScheduler {

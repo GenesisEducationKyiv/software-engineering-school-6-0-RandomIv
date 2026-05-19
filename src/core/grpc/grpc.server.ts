@@ -1,7 +1,7 @@
 import path from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
-import { logger } from '../../core/logger/logger';
+import { logger } from '../logger';
 import { config } from '../../config';
 import type {
   LoadedGrpcObject,

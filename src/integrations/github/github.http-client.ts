@@ -1,7 +1,7 @@
 import { HttpStatus } from '../../common/constants/http-status.constants';
 import { AppError, RateLimitError } from '../../common/errors';
 import { cacheService } from '../../core/cache/cache.service';
-import { logger } from '../../core/logger/logger';
+import { logger } from '../../core/logger';
 import { httpClient } from '../../common/utils/http-client.util';
 import { config } from '../../config';
 import { getGitHubCacheKey } from './github.cache-keys';
