@@ -1,6 +1,8 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
 import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
+import { SubscriptionRestController } from '../../src/modules/subscription/controllers/subscription.rest.controller';
+import { SubscriptionWebController } from '../../src/modules/subscription/controllers/subscription.web.controller';
 import type { SubscriptionService } from '../../src/modules/subscription/subscription.service';
 
 describe('app routing integration', () => {
@@ -10,7 +12,9 @@ describe('app routing integration', () => {
     unsubscribeByToken: jest.fn(),
     getSubscriptionsByEmail: jest.fn(),
   };
-  const app = createApp({ subscriptionService });
+  const apiController = new SubscriptionRestController(subscriptionService);
+  const webController = new SubscriptionWebController(subscriptionService);
+  const app = createApp({ apiController, webController });
 
   let consoleErrorSpy: jest.SpyInstance;
 

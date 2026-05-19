@@ -6,10 +6,7 @@ import { GitHubApiService } from './integrations/github/github.service';
 import { NodemailerService } from './integrations/email/email.service';
 import { PrismaRepositoryRepository } from './modules/repository/repository.repository';
 import { ScannerService } from './modules/scanner/scanner.service';
-import {
-  SubscriptionApplicationService,
-  SubscriptionService,
-} from './modules/subscription/subscription.service';
+import { SubscriptionApplicationService } from './modules/subscription/subscription.service';
 import { PrismaSubscriptionRepository } from './modules/subscription/subscription.repository';
 import { ReleaseCheckScheduler } from './scheduler/release-check.scheduler';
 import {
@@ -17,10 +14,12 @@ import {
   createSubscriptionGrpcHandlers,
 } from './modules/subscription/controllers/subscription.grpc.controller';
 import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
+import { SubscriptionRestController } from './modules/subscription/controllers/subscription.rest.controller';
+import { SubscriptionWebController } from './modules/subscription/controllers/subscription.web.controller';
 
 export interface DependencyContainer {
-  subscriptionService: SubscriptionService;
-  scannerService: ScannerService;
+  apiController: SubscriptionRestController;
+  webController: SubscriptionWebController;
   grpcHandlers: ReleaseNotifierHandlers;
   scheduler: ReleaseCheckScheduler;
 }
@@ -59,6 +58,9 @@ export const createDependencyContainer = (): DependencyContainer => {
     appBaseUrl,
   });
 
+  const apiController = new SubscriptionRestController(subscriptionService);
+  const webController = new SubscriptionWebController(subscriptionService);
+
   const grpcController = new SubscriptionGrpcController(
     subscriptionService,
     config.API_KEY,
@@ -72,8 +74,8 @@ export const createDependencyContainer = (): DependencyContainer => {
   );
 
   return {
-    subscriptionService,
-    scannerService,
+    apiController,
+    webController,
     grpcHandlers,
     scheduler,
   };

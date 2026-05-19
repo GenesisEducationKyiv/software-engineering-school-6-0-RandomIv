@@ -97,7 +97,8 @@ const bootstrap = async (): Promise<void> => {
   const dependencyContainer = createDependencyContainer();
 
   const app = createApp({
-    subscriptionService: dependencyContainer.subscriptionService,
+    apiController: dependencyContainer.apiController,
+    webController: dependencyContainer.webController,
   });
 
   httpServer = app.listen(PORT, () => {

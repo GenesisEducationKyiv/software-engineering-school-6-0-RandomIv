@@ -16,14 +16,15 @@ import {
   prometheusMetricsMiddleware,
 } from './core/metrics/prometheus';
 import { requireApiKey } from './common/middlewares/api-key.middleware';
-import { SubscriptionService } from './modules/subscription/subscription.service';
 
 export interface AppDependencies {
-  subscriptionService: SubscriptionService;
+  apiController: SubscriptionRestController;
+  webController: SubscriptionWebController;
 }
 
 export const createApp = ({
-  subscriptionService,
+  apiController,
+  webController,
 }: AppDependencies): Application => {
   const app: Application = express();
   initPrometheusMetrics();
@@ -36,9 +37,6 @@ export const createApp = ({
   });
 
   app.get('/metrics', prometheusMetricsHandler);
-
-  const apiController = new SubscriptionRestController(subscriptionService);
-  const webController = new SubscriptionWebController(subscriptionService);
 
   const subscriptionApiRouter = createSubscriptionApiRouter(apiController);
   const subscriptionWebRouter = createSubscriptionWebRouter(webController);
