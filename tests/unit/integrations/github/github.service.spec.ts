@@ -36,11 +36,12 @@ describe('github.service', () => {
 
   describe('getLatestRelease', () => {
     it('returns release payload when response is valid', async () => {
-      request.mockImplementationOnce((_endpoint, schema) =>
-        schema?.parse({
-          tag_name: 'v1.2.3',
-          html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
-        }),
+      request.mockImplementationOnce(
+        (_endpoint, schema) =>
+          schema?.parse({
+            tag_name: 'v1.2.3',
+            html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
+          }) as unknown,
       );
 
       await expect(service.getLatestRelease('owner/repo')).resolves.toEqual({
@@ -60,8 +61,8 @@ describe('github.service', () => {
     });
 
     it('throws when response does not match schema', async () => {
-      request.mockImplementationOnce((_endpoint, schema) =>
-        schema?.parse({ invalid: 'shape' }),
+      request.mockImplementationOnce(
+        (_endpoint, schema) => schema?.parse({ invalid: 'shape' }) as unknown,
       );
 
       await expect(service.getLatestRelease('owner/repo')).rejects.toThrow();
