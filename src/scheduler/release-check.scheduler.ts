@@ -3,7 +3,7 @@ import type { ScheduledTask } from 'node-cron';
 import { logger } from '../core/logger/logger';
 import { ScannerService } from '../modules/scanner/scanner.service';
 
-export class ReleaseCheckJob {
+export class ReleaseCheckScheduler {
   constructor(
     private readonly scannerService: ScannerService,
     private readonly schedule: string,
@@ -11,12 +11,10 @@ export class ReleaseCheckJob {
 
   start(): ScheduledTask {
     const task = cron.schedule(this.schedule, async () => {
-      logger.info(`[Job] Release check at ${new Date().toISOString()}`);
+      logger.info(`[Scheduler] Release check at ${new Date().toISOString()}`);
       await this.scannerService.checkReleases();
     });
-
-    logger.info(`[Job] Release check initialized (${this.schedule})`);
-
+    logger.info(`[Scheduler] Release check initialized (${this.schedule})`);
     return task;
   }
 }

@@ -5,7 +5,7 @@ import { createApp } from './app';
 import { config } from './config';
 import { logger } from './core/logger/logger';
 import { createDependencyContainer } from './dependency-container';
-import { ReleaseCheckJob } from './scheduler/release-check.scheduler';
+import { ReleaseCheckScheduler } from './scheduler/release-check.scheduler';
 import {
   SubscriptionGrpcController,
   createSubscriptionGrpcHandlers,
@@ -115,7 +115,7 @@ const bootstrap = async (): Promise<void> => {
   const handlers = createSubscriptionGrpcHandlers(grpcController);
   grpcServer = await startGrpcServer(handlers);
 
-  releaseCheckTask = new ReleaseCheckJob(
+  releaseCheckTask = new ReleaseCheckScheduler(
     dependencyContainer.scannerService,
     config.RELEASE_CHECK_CRON,
   ).start();
