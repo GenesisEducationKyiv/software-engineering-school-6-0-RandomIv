@@ -5,7 +5,9 @@ type GitHubRequest = <T>(endpoint: string) => Promise<T>;
 
 export interface GitHubService {
   checkRepoExists(repository: string): Promise<boolean>;
-  getLatestReleaseTag(repository: string): Promise<string | null>;
+  getLatestRelease(
+    repository: string,
+  ): Promise<{ tag: string; url: string } | null>;
 }
 
 export class GitHubApiService implements GitHubService {
@@ -24,14 +26,19 @@ export class GitHubApiService implements GitHubService {
     }
   }
 
-  async getLatestReleaseTag(repository: string): Promise<string | null> {
+  async getLatestRelease(
+    repository: string,
+  ): Promise<{ tag: string; url: string } | null> {
     try {
       const data = await this.request<GitHubReleaseResponse>(
         `${repository}/releases/latest`,
       );
 
       const parsedData = githubReleaseSchema.parse(data);
-      return parsedData.tag_name;
+      return {
+        tag: parsedData.tag_name,
+        url: parsedData.html_url,
+      };
     } catch (error) {
       if (error instanceof NotFoundError) {
         return null;

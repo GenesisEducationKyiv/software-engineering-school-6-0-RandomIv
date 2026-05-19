@@ -31,8 +31,8 @@ export const createDependencyContainer = (): DependencyContainer => {
       },
     }),
     emailUser: config.EMAIL_USER,
-    appBaseUrl: config.APP_BASE_URL ?? `http://localhost:${config.PORT}`,
   });
+  const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
   const repositoryService = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
   const subscriptionService = new SubscriptionApplicationService({
@@ -40,11 +40,13 @@ export const createDependencyContainer = (): DependencyContainer => {
     githubService,
     repositoryService,
     emailService,
+    appBaseUrl,
   });
   const scannerService = new ReleaseScannerService({
     githubService,
     emailService,
-    repositoryService,
+    repositoryRepository: repositoryService,
+    appBaseUrl,
   });
 
   return {

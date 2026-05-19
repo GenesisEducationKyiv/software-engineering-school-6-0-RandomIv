@@ -33,35 +33,37 @@ describe('github.service', () => {
     });
   });
 
-  describe('getLatestReleaseTag', () => {
-    it('returns release tag when response is valid', async () => {
-      request.mockResolvedValueOnce({ tag_name: 'v1.2.3' });
+  describe('getLatestRelease', () => {
+    it('returns release payload when response is valid', async () => {
+      request.mockResolvedValueOnce({
+        tag_name: 'v1.2.3',
+        html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
+      });
 
-      await expect(service.getLatestReleaseTag('owner/repo')).resolves.toBe(
-        'v1.2.3',
-      );
+      await expect(service.getLatestRelease('owner/repo')).resolves.toEqual({
+        tag: 'v1.2.3',
+        url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
+      });
       expect(request).toHaveBeenCalledWith('owner/repo/releases/latest');
     });
 
     it('returns null when repository or latest release is not found', async () => {
       request.mockRejectedValueOnce(new NotFoundError());
 
-      await expect(
-        service.getLatestReleaseTag('owner/repo'),
-      ).resolves.toBeNull();
+      await expect(service.getLatestRelease('owner/repo')).resolves.toBeNull();
     });
 
     it('throws when response does not match schema', async () => {
       request.mockResolvedValueOnce({ invalid: 'shape' });
 
-      await expect(service.getLatestReleaseTag('owner/repo')).rejects.toThrow();
+      await expect(service.getLatestRelease('owner/repo')).rejects.toThrow();
     });
 
     it('propagates unexpected errors', async () => {
       const error = new Error('Unexpected failure');
       request.mockRejectedValueOnce(error);
 
-      await expect(service.getLatestReleaseTag('owner/repo')).rejects.toThrow(
+      await expect(service.getLatestRelease('owner/repo')).rejects.toThrow(
         error,
       );
     });

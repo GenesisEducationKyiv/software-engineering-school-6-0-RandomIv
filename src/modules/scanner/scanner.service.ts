@@ -4,14 +4,13 @@ import { EmailService } from '../../integrations/email/email.service';
 import { RepositoryRepository } from '../repository/repository.repository';
 import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
 import { RateLimitError } from '../../common/errors';
+import { AppUrls } from '../../common/utils/url-builder.util';
 
-interface ScannerServiceDependencies {
-  githubService: Pick<GitHubService, 'getLatestReleaseTag'>;
-  emailService: Pick<EmailService, 'sendReleaseEmail'>;
-  repositoryService: Pick<
-    RepositoryRepository,
-    'getActiveRepositories' | 'updateLastSeenTag'
-  >;
+export interface ReleaseScannerDependencies {
+  githubService: GitHubService;
+  emailService: EmailService;
+  repositoryRepository: RepositoryRepository;
+  appBaseUrl: string;
 }
 
 export interface ScannerService {
@@ -19,39 +18,44 @@ export interface ScannerService {
 }
 
 export class ReleaseScannerService implements ScannerService {
-  private readonly githubService: Pick<GitHubService, 'getLatestReleaseTag'>;
-  private readonly emailService: Pick<EmailService, 'sendReleaseEmail'>;
-  private readonly repositoryService: Pick<
-    RepositoryRepository,
-    'getActiveRepositories' | 'updateLastSeenTag'
-  >;
+  private readonly githubService: GitHubService;
+  private readonly emailService: EmailService;
+  private readonly repositoryRepository: RepositoryRepository;
+  private readonly appBaseUrl: string;
 
-  constructor(dependencies: ScannerServiceDependencies) {
+  constructor(dependencies: ReleaseScannerDependencies) {
     this.githubService = dependencies.githubService;
     this.emailService = dependencies.emailService;
-    this.repositoryService = dependencies.repositoryService;
+    this.repositoryRepository = dependencies.repositoryRepository;
+    this.appBaseUrl = dependencies.appBaseUrl;
   }
 
   async checkReleases(): Promise<void> {
     const repositories: RepositoryWithSubscriptions[] =
-      await this.repositoryService.getActiveRepositories();
+      await this.repositoryRepository.getActiveRepositories();
 
     for (const repo of repositories) {
       try {
-        const latestTag = await this.githubService.getLatestReleaseTag(
+        const latestRelease = await this.githubService.getLatestRelease(
           repo.fullName,
         );
-        if (!latestTag || latestTag === repo.lastSeenTag) continue;
+        if (!latestRelease || latestRelease.tag === repo.lastSeenTag) continue;
 
         let allEmailsSent = true;
 
         for (const sub of repo.subscriptions) {
           try {
+            const unsubscribeUrl = AppUrls.unsubscribe(
+              this.appBaseUrl,
+              sub.unsubscribeToken,
+            );
+
             await this.emailService.sendReleaseEmail(
               sub.email,
               repo.fullName,
-              latestTag,
-              sub.unsubscribeToken,
+              latestRelease.tag,
+              latestRelease.url,
+              unsubscribeUrl,
             );
           } catch (error) {
             allEmailsSent = false;
@@ -69,7 +73,10 @@ export class ReleaseScannerService implements ScannerService {
           continue;
         }
 
-        await this.repositoryService.updateLastSeenTag(repo.id, latestTag);
+        await this.repositoryRepository.updateLastSeenTag(
+          repo.id,
+          latestRelease.tag,
+        );
       } catch (error) {
         if (error instanceof RateLimitError) {
           logger.warn(

@@ -6,6 +6,7 @@ import {
 import { ConflictError, NotFoundError } from '../../../../src/common/errors';
 import { SubscriptionApplicationService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepository } from '../../../../src/modules/subscription/subscription.repository';
+import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 
 const repositoryRecord: Repository = {
   id: 'repo-1',
@@ -42,12 +43,14 @@ describe('subscription.service', () => {
   const emailService = {
     sendSubscriptionConfirmationEmail: jest.fn(),
   };
+  const appBaseUrl = 'https://app.example.com';
 
   const service = new SubscriptionApplicationService({
     subscriptionRepository,
     githubService,
     repositoryService,
     emailService,
+    appBaseUrl,
   });
 
   beforeEach(() => {
@@ -87,8 +90,8 @@ describe('subscription.service', () => {
       ).toHaveBeenCalledWith(
         'test@example.com',
         'owner/repo',
-        subscriptionRecord.confirmationToken,
-        subscriptionRecord.unsubscribeToken,
+        AppUrls.confirm(appBaseUrl, subscriptionRecord.confirmationToken),
+        AppUrls.unsubscribe(appBaseUrl, subscriptionRecord.unsubscribeToken),
       );
     });
 

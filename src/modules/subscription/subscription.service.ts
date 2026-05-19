@@ -18,12 +18,14 @@ import {
 } from '../../common/errors';
 import { EmailService } from '../../integrations/email/email.service';
 import { SubscriptionRepository } from './subscription.repository';
+import { AppUrls } from '../../common/utils/url-builder.util';
 
 interface SubscriptionServiceDependencies {
   subscriptionRepository: SubscriptionRepository;
   githubService: Pick<GitHubService, 'checkRepoExists'>;
   repositoryService: Pick<RepositoryRepository, 'getOrCreateRepository'>;
   emailService: Pick<EmailService, 'sendSubscriptionConfirmationEmail'>;
+  appBaseUrl: string;
 }
 
 export interface SubscriptionService {
@@ -46,12 +48,14 @@ export class SubscriptionApplicationService implements SubscriptionService {
     EmailService,
     'sendSubscriptionConfirmationEmail'
   >;
+  private readonly appBaseUrl: string;
 
   constructor(dependencies: SubscriptionServiceDependencies) {
     this.subscriptionRepository = dependencies.subscriptionRepository;
     this.githubService = dependencies.githubService;
     this.repositoryService = dependencies.repositoryService;
     this.emailService = dependencies.emailService;
+    this.appBaseUrl = dependencies.appBaseUrl;
   }
 
   async subscribe({ email, repo }: SubscribeDto): Promise<Subscription> {
@@ -82,11 +86,20 @@ export class SubscriptionApplicationService implements SubscriptionService {
     }
 
     try {
+      const confirmationUrl = AppUrls.confirm(
+        this.appBaseUrl,
+        subscription.confirmationToken,
+      );
+      const unsubscribeUrl = AppUrls.unsubscribe(
+        this.appBaseUrl,
+        subscription.unsubscribeToken,
+      );
+
       await this.emailService.sendSubscriptionConfirmationEmail(
         email,
         repo,
-        subscription.confirmationToken,
-        subscription.unsubscribeToken,
+        confirmationUrl,
+        unsubscribeUrl,
       );
     } catch (error) {
       await this.subscriptionRepository.deleteByUnsubscribeToken(

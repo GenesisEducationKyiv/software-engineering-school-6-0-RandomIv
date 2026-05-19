@@ -1,52 +1,46 @@
-import { SentMessageInfo, Transporter } from 'nodemailer';
+import { Transporter } from 'nodemailer';
 import { HttpStatus } from '../../common/constants/http-status.constants';
 import { AppError } from '../../common/errors';
 import { confirmationEmailTemplate } from './templates/confirmation.template';
 import { releaseEmailTemplate } from './templates/release.template';
 
-type MailTransporter = Pick<Transporter, 'sendMail'>;
-
-export interface EmailServiceDependencies {
-  transporter: MailTransporter;
+export interface NodemailerServiceDependencies {
+  transporter: Transporter;
   emailUser: string;
-  appBaseUrl: string;
 }
 
 export interface EmailService {
   sendSubscriptionConfirmationEmail(
     to: string,
     repository: string,
-    confirmationToken: string,
-    unsubscribeToken: string,
-  ): Promise<SentMessageInfo>;
+    confirmationUrl: string,
+    unsubscribeUrl: string,
+  ): Promise<void>;
+
   sendReleaseEmail(
     to: string,
     repository: string,
     version: string,
-    unsubscribeToken: string,
-  ): Promise<SentMessageInfo>;
+    releaseUrl: string,
+    unsubscribeUrl: string,
+  ): Promise<void>;
 }
 
 export class NodemailerService implements EmailService {
-  private readonly transporter: MailTransporter;
+  private readonly transporter: Transporter;
   private readonly emailUser: string;
-  private readonly appBaseUrl: string;
 
-  constructor(dependencies: EmailServiceDependencies) {
+  constructor(dependencies: NodemailerServiceDependencies) {
     this.emailUser = dependencies.emailUser;
-    this.appBaseUrl = dependencies.appBaseUrl;
     this.transporter = dependencies.transporter;
   }
 
   async sendSubscriptionConfirmationEmail(
     to: string,
     repository: string,
-    confirmationToken: string,
-    unsubscribeToken: string,
-  ): Promise<SentMessageInfo> {
-    const confirmationUrl = this.buildWebUrl(`/confirm/${confirmationToken}`);
-    const unsubscribeUrl = this.buildWebUrl(`/unsubscribe/${unsubscribeToken}`);
-
+    confirmationUrl: string,
+    unsubscribeUrl: string,
+  ): Promise<void> {
     const template = confirmationEmailTemplate(
       repository,
       confirmationUrl,
@@ -54,7 +48,7 @@ export class NodemailerService implements EmailService {
     );
 
     try {
-      return await this.transporter.sendMail({
+      await this.transporter.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
         subject: `Confirm subscription for ${repository}`,
@@ -74,11 +68,9 @@ export class NodemailerService implements EmailService {
     to: string,
     repository: string,
     version: string,
-    unsubscribeToken: string,
-  ): Promise<SentMessageInfo> {
-    const releaseUrl = `https://github.com/${repository}/releases/tag/${version}`;
-    const unsubscribeUrl = this.buildWebUrl(`/unsubscribe/${unsubscribeToken}`);
-
+    releaseUrl: string,
+    unsubscribeUrl: string,
+  ): Promise<void> {
     const template = releaseEmailTemplate(
       repository,
       version,
@@ -87,7 +79,7 @@ export class NodemailerService implements EmailService {
     );
 
     try {
-      return await this.transporter.sendMail({
+      await this.transporter.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
         subject: `New release in ${repository}: ${version}`,
@@ -101,9 +93,5 @@ export class NodemailerService implements EmailService {
         `Failed to send email to ${to}: ${reason}`,
       );
     }
-  }
-
-  private buildWebUrl(path: string): string {
-    return `${this.appBaseUrl.replace(/\/+$/, '')}/web${path}`;
   }
 }
