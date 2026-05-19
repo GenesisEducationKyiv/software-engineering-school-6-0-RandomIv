@@ -8,7 +8,7 @@ import {
   tokenParamSchema,
 } from '../subscription.schema';
 import { toSubscriptionDto } from '../subscription.mapper';
-import { toGrpcServiceError } from '../../grpc/grpc.error-mapper';
+import { toGrpcServiceError } from '../../../core/grpc/grpc.error-mapper';
 import type {
   ConfirmRequest,
   GetSubscriptionsRequest,
@@ -17,7 +17,7 @@ import type {
   ReleaseNotifierHandlers,
   SubscribeRequest,
   UnsubscribeRequest,
-} from '../../grpc/grpc.types';
+} from '../../../core/grpc/grpc.types';
 
 const API_KEY_METADATA_KEY = 'x-api-key';
 

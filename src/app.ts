@@ -14,7 +14,7 @@ import {
   initPrometheusMetrics,
   prometheusMetricsHandler,
   prometheusMetricsMiddleware,
-} from './common/metrics/prometheus';
+} from './core/metrics/prometheus';
 import { requireApiKey } from './common/middlewares/api-key.middleware';
 import { SubscriptionService } from './modules/subscription/subscription.service';
 

@@ -1,6 +1,6 @@
-import { logger } from '../../common/logger/logger';
-import { GitHubService } from '../github/github.service';
-import { EmailService } from '../notification/email.service';
+import { logger } from '../../core/logger/logger';
+import { GitHubService } from '../../integrations/github/github.service';
+import { EmailService } from '../../integrations/email/email.service';
 import { RepositoryRepository } from '../repository/repository.repository';
 import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
 import { RateLimitError } from '../../common/errors';

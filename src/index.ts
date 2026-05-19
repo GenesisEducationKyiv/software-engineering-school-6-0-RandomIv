@@ -3,14 +3,14 @@ import type { ScheduledTask } from 'node-cron';
 import type * as grpc from '@grpc/grpc-js';
 import { createApp } from './app';
 import { config } from './config';
-import { logger } from './common/logger/logger';
+import { logger } from './core/logger/logger';
 import { createDependencyContainer } from './dependency-container';
-import { ReleaseCheckJob } from './jobs/release-check.job';
+import { ReleaseCheckJob } from './scheduler/release-check.scheduler';
 import {
   SubscriptionGrpcController,
   createSubscriptionGrpcHandlers,
 } from './modules/subscription/controllers/subscription.grpc.controller';
-import { startGrpcServer } from './modules/grpc/grpc.server';
+import { startGrpcServer } from './core/grpc/grpc.server';
 
 const PORT = config.PORT;
 const SHUTDOWN_TIMEOUT_MS = 10_000;

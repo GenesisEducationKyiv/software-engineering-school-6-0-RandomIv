@@ -1,10 +1,10 @@
-import { HttpStatus } from '../../../src/common/constants/http-status.constants';
+import { HttpStatus } from '../../../../src/common/constants/http-status.constants';
 import {
   AppError,
   NotFoundError,
   RateLimitError,
-} from '../../../src/common/errors';
-import { httpClient } from '../../../src/common/utils/http-client';
+} from '../../../../src/common/errors';
+import { httpClient } from '../../../../src/common/utils/http-client';
 
 describe('http-client', () => {
   let fetchSpy: jest.SpiedFunction<typeof fetch>;

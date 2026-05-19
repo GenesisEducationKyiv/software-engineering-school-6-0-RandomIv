@@ -1,9 +1,9 @@
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
-import { Prisma } from '../../../src/generated/prisma/client';
-import { AppError } from '../../../src/common/errors';
-import { HttpStatus } from '../../../src/common/constants/http-status.constants';
-import { errorHandler } from '../../../src/common/middlewares/error.middleware';
+import { Prisma } from '../../../../src/generated/prisma/client';
+import { AppError } from '../../../../src/common/errors';
+import { HttpStatus } from '../../../../src/common/constants/http-status.constants';
+import { errorHandler } from '../../../../src/common/middlewares/error.middleware';
 
 type MockResponse = Response & {
   status: jest.Mock;

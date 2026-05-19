@@ -1,5 +1,5 @@
 import { NotFoundError } from '../../../../src/common/errors';
-import { GitHubApiService } from '../../../../src/modules/github/github.service';
+import { GitHubApiService } from '../../../../src/integrations/github/github.service';
 
 describe('github.service', () => {
   const request = jest.fn();

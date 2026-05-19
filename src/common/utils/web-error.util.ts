@@ -1,7 +1,7 @@
 import { Response } from 'express';
 import { ZodError } from 'zod';
 import { AppError } from '../errors';
-import { renderHtmlMessage } from '../views/html.template';
+import { renderHtmlMessage } from '../../views/html.template';
 
 export const sendWebError = (res: Response, error: unknown): void => {
   if (error instanceof AppError) {

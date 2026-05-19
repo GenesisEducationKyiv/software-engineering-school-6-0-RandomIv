@@ -3,7 +3,7 @@ import { HttpStatus } from '../../../../src/common/constants/http-status.constan
 import {
   EmailService,
   NodemailerService,
-} from '../../../../src/modules/notification/email.service';
+} from '../../../../src/integrations/email/email.service';
 
 describe('email.service', () => {
   const sendMailMock = jest.fn();

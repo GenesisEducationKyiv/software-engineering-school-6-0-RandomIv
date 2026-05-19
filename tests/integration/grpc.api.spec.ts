@@ -77,7 +77,7 @@ describe('gRPC integration', () => {
       { startGrpcServer },
       { SubscriptionGrpcController, createSubscriptionGrpcHandlers },
     ] = await Promise.all([
-      import('../../src/modules/grpc/grpc.server'),
+      import('../../src/core/grpc/grpc.server'),
       import('../../src/modules/subscription/controllers/subscription.grpc.controller'),
     ]);
     const subscriptionService: SubscriptionService = {

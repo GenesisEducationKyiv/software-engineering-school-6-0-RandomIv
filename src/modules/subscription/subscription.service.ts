@@ -1,4 +1,4 @@
-import { GitHubService } from '../github/github.service';
+import { GitHubService } from '../../integrations/github/github.service';
 import {
   SubscribeDto,
   SubscriptionsQueryDto,
@@ -16,7 +16,7 @@ import {
   ConflictError,
   NotFoundError,
 } from '../../common/errors';
-import { EmailService } from '../notification/email.service';
+import { EmailService } from '../../integrations/email/email.service';
 import { SubscriptionRepository } from './subscription.repository';
 
 interface SubscriptionServiceDependencies {

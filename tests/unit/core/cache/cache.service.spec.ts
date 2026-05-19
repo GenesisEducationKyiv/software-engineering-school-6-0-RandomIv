@@ -1,9 +1,9 @@
-jest.mock('../../../../src/common/cache/redis.client', () => ({
+jest.mock('../../../../src/core/cache/redis.client', () => ({
   getRedisClient: jest.fn(),
 }));
 
-import { cacheService } from '../../../../src/common/cache/cache.service';
-import { getRedisClient } from '../../../../src/common/cache/redis.client';
+import { cacheService } from '../../../../src/core/cache/cache.service';
+import { getRedisClient } from '../../../../src/core/cache/redis.client';
 
 const mockedGetRedisClient = jest.mocked(getRedisClient);
 

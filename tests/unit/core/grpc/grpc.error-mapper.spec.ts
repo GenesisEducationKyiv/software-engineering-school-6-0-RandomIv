@@ -7,7 +7,7 @@ import {
   RateLimitError,
   UnauthorizedError,
 } from '../../../../src/common/errors';
-import { toGrpcServiceError } from '../../../../src/modules/grpc/grpc.error-mapper';
+import { toGrpcServiceError } from '../../../../src/core/grpc/grpc.error-mapper';
 
 describe('grpc.error-mapper', () => {
   it('maps AppError(400) to INVALID_ARGUMENT', () => {

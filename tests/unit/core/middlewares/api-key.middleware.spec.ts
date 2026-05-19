@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from 'express';
 import {
   API_KEY_HEADER,
   requireApiKey,
-} from '../../../src/common/middlewares/api-key.middleware';
+} from '../../../../src/common/middlewares/api-key.middleware';
 
 describe('api-key.middleware', () => {
   const res = {} as Response;

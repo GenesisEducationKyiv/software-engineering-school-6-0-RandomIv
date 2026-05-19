@@ -1,9 +1,9 @@
-import prisma from './common/utils/db';
+import prisma from './core/db/db';
 import nodemailer from 'nodemailer';
 import { config } from './config';
-import { githubHttpClient } from './modules/github/github.utils';
-import { GitHubApiService } from './modules/github/github.service';
-import { NodemailerService } from './modules/notification/email.service';
+import { githubHttpClient } from './integrations/github/github.utils';
+import { GitHubApiService } from './integrations/github/github.service';
+import { NodemailerService } from './integrations/email/email.service';
 import { PrismaRepositoryRepository } from './modules/repository/repository.repository';
 import {
   ReleaseScannerService,

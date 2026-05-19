@@ -19,7 +19,7 @@ const loadGithubUtils = async ({
     httpClient: mockHttpClient,
   }));
 
-  jest.doMock('../../../../src/common/cache/cache.service', () => ({
+  jest.doMock('../../../../src/core/cache/cache.service', () => ({
     cacheService: {
       getJson: mockGetJson,
       setJson: mockSetJson,
@@ -33,7 +33,7 @@ const loadGithubUtils = async ({
     },
   }));
 
-  return import('../../../../src/modules/github/github.utils');
+  return import('../../../../src/integrations/github/github.utils');
 };
 
 describe('github.utils', () => {
