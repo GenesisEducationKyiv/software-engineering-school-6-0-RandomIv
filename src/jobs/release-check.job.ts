@@ -1,6 +1,6 @@
 import cron from 'node-cron';
 import type { ScheduledTask } from 'node-cron';
-import { logger } from '../common/logger/logger';
+import { logger } from '../common/logger';
 import { config } from '../config';
 import { checkReleases } from '../modules/scanner/scanner.service';
 

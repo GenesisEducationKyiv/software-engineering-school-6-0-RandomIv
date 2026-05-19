@@ -3,7 +3,7 @@ import type { ScheduledTask } from 'node-cron';
 import type * as grpc from '@grpc/grpc-js';
 import app from './app';
 import { config } from './config';
-import { logger } from './common/logger/logger';
+import { logger } from './common/logger';
 import { initReleaseCheckJob } from './jobs/release-check.job';
 import { startGrpcServer } from './modules/grpc/grpc.server';
 

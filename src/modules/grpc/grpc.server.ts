@@ -1,7 +1,7 @@
 import path from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
-import { logger } from '../../common/logger/logger';
+import { logger } from '../../common/logger';
 import { config } from '../../config';
 import { releaseNotifierGrpcHandlers } from './grpc.handlers';
 import type {

@@ -4,7 +4,7 @@ import {
   getActiveRepositories,
   updateLastSeenTag,
 } from '../repository/repository.service';
-import { logger } from '../../common/logger/logger';
+import { logger } from '../../common/logger';
 import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
 import { RateLimitError } from '../../common/errors';
 
