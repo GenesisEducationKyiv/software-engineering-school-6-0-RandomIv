@@ -65,7 +65,8 @@ describe('github.service', () => {
 
     it('throws when response does not match schema', async () => {
       request.mockImplementationOnce(
-        (_endpoint, schema) => schema?.parse({ invalid: 'shape' }),
+        (_endpoint, schema) =>
+          schema?.parse({ invalid: 'shape' }) as GitHubReleaseResponse,
       );
 
       await expect(service.getLatestRelease('owner/repo')).rejects.toThrow();
