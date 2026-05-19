@@ -94,6 +94,8 @@ const setupGracefulShutdown = (): void => {
 };
 
 const bootstrap = async (): Promise<void> => {
+  setupGracefulShutdown();
+
   const dependencyContainer = createDependencyContainer();
 
   const app = createApp({
@@ -108,8 +110,6 @@ const bootstrap = async (): Promise<void> => {
   grpcServer = await startGrpcServer(dependencyContainer.grpcHandlers);
 
   releaseCheckTask = dependencyContainer.scheduler.start();
-
-  setupGracefulShutdown();
 };
 
 bootstrap().catch((error: unknown) => {

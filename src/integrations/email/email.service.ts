@@ -1,6 +1,7 @@
 import { Transporter } from 'nodemailer';
 import { HttpStatus } from '../../common/constants/http-status.constants';
 import { AppError } from '../../common/errors';
+import { logger } from '../../core/logger';
 import { confirmationEmailTemplate } from './templates/confirmation.template';
 import { releaseEmailTemplate } from './templates/release.template';
 
@@ -56,10 +57,10 @@ export class NodemailerService implements EmailService {
         html: template.html,
       });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ err: error, to }, 'Failed to send confirmation email');
       throw new AppError(
         HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to send email to ${to}: ${reason}`,
+        'Failed to send email. Please try again later.',
       );
     }
   }
@@ -87,10 +88,10 @@ export class NodemailerService implements EmailService {
         html: template.html,
       });
     } catch (error) {
-      const reason = error instanceof Error ? error.message : 'Unknown error';
+      logger.error({ err: error, to }, 'Failed to send release email');
       throw new AppError(
         HttpStatus.INTERNAL_SERVER_ERROR,
-        `Failed to send email to ${to}: ${reason}`,
+        'Failed to send email. Please try again later.',
       );
     }
   }

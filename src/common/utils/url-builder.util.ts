@@ -11,7 +11,7 @@ export const buildWebUrl = (baseUrl: string, path: string): string => {
 
 export const AppUrls = {
   unsubscribe: (baseUrl: string, token: string): string =>
-    buildWebUrl(baseUrl, `/web/unsubscribe/${token}`),
+    buildWebUrl(baseUrl, `/web/unsubscribe/${encodeURIComponent(token)}`),
   confirm: (baseUrl: string, token: string): string =>
-    buildWebUrl(baseUrl, `/web/confirm/${token}`),
+    buildWebUrl(baseUrl, `/web/confirm/${encodeURIComponent(token)}`),
 };

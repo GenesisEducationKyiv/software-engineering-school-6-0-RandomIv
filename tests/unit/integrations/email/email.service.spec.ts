@@ -76,7 +76,7 @@ describe('email.service', () => {
       ),
     ).rejects.toMatchObject({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: expect.stringContaining('SMTP unavailable'),
+      message: 'Failed to send email. Please try again later.',
     });
   });
 
@@ -93,7 +93,7 @@ describe('email.service', () => {
       ),
     ).rejects.toMatchObject({
       statusCode: HttpStatus.INTERNAL_SERVER_ERROR,
-      message: 'Failed to send email to user@example.com: Unknown error',
+      message: 'Failed to send email. Please try again later.',
     });
   });
 });

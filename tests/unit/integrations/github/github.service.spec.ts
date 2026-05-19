@@ -1,6 +1,9 @@
 import { NotFoundError } from '../../../../src/common/errors';
 import { GitHubApiService } from '../../../../src/integrations/github/github.service';
-import { githubReleaseSchema } from '../../../../src/integrations/github/github.schema';
+import {
+  githubReleaseSchema,
+  type GitHubReleaseResponse,
+} from '../../../../src/integrations/github/github.schema';
 
 describe('github.service', () => {
   const request = jest.fn();
@@ -41,7 +44,7 @@ describe('github.service', () => {
           schema?.parse({
             tag_name: 'v1.2.3',
             html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
-          }) as unknown,
+          }) as GitHubReleaseResponse,
       );
 
       await expect(service.getLatestRelease('owner/repo')).resolves.toEqual({
@@ -62,7 +65,7 @@ describe('github.service', () => {
 
     it('throws when response does not match schema', async () => {
       request.mockImplementationOnce(
-        (_endpoint, schema) => schema?.parse({ invalid: 'shape' }) as unknown,
+        (_endpoint, schema) => schema?.parse({ invalid: 'shape' }),
       );
 
       await expect(service.getLatestRelease('owner/repo')).rejects.toThrow();

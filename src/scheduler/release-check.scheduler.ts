@@ -12,7 +12,11 @@ export class ReleaseCheckScheduler {
   start(): ScheduledTask {
     const task = cron.schedule(this.schedule, async () => {
       logger.info(`[Scheduler] Release check at ${new Date().toISOString()}`);
-      await this.scannerService.checkReleases();
+      try {
+        await this.scannerService.checkReleases();
+      } catch (error) {
+        logger.error({ err: error }, '[Scheduler] Release check failed');
+      }
     });
     logger.info(`[Scheduler] Release check initialized (${this.schedule})`);
     return task;
