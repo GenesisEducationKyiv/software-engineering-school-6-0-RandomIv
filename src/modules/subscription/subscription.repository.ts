@@ -1,14 +1,18 @@
-import { PrismaClient, Subscription } from '../../generated/prisma/client';
-import type { SubscriptionWithRepository } from '../../common/types/subscription-with-repository.type';
+import { PrismaClient, Prisma } from '../../generated/prisma/client';
+import { ConflictError } from '../../common/errors';
+import type {
+  SubscriptionEntity,
+  SubscriptionWithRepositoryEntity,
+} from '../../common/entities';
 
 export interface SubscriptionRepository {
   createSubscription(data: {
     email: string;
     confirmed: boolean;
     repositoryId: string;
-  }): Promise<Subscription>;
+  }): Promise<SubscriptionEntity>;
 
-  findByConfirmationToken(token: string): Promise<Subscription | null>;
+  findByConfirmationToken(token: string): Promise<SubscriptionEntity | null>;
 
   updateConfirmation(subscriptionId: string): Promise<void>;
 
@@ -17,7 +21,7 @@ export interface SubscriptionRepository {
   findByEmail(
     email: string,
     confirmedOnly?: boolean,
-  ): Promise<SubscriptionWithRepository[]>;
+  ): Promise<SubscriptionWithRepositoryEntity[]>;
 }
 
 export class PrismaSubscriptionRepository implements SubscriptionRepository {
@@ -27,13 +31,26 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
     email: string;
     confirmed: boolean;
     repositoryId: string;
-  }): Promise<Subscription> {
-    return this.prismaClient.subscription.create({
-      data,
-    });
+  }): Promise<SubscriptionEntity> {
+    try {
+      return await this.prismaClient.subscription.create({
+        data,
+      });
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        throw new ConflictError('Email already subscribed to this repository');
+      }
+
+      throw error;
+    }
   }
 
-  async findByConfirmationToken(token: string): Promise<Subscription | null> {
+  async findByConfirmationToken(
+    token: string,
+  ): Promise<SubscriptionEntity | null> {
     return this.prismaClient.subscription.findUnique({
       where: { confirmationToken: token },
     });
@@ -56,7 +73,7 @@ export class PrismaSubscriptionRepository implements SubscriptionRepository {
   async findByEmail(
     email: string,
     confirmedOnly = false,
-  ): Promise<SubscriptionWithRepository[]> {
+  ): Promise<SubscriptionWithRepositoryEntity[]> {
     return this.prismaClient.subscription.findMany({
       where: {
         email,

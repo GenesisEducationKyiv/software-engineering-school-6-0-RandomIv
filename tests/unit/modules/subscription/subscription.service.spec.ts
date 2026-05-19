@@ -1,7 +1,7 @@
-import {
-  type Repository,
-  type Subscription,
-} from '../../../../src/generated/prisma/client';
+import type {
+  RepositoryEntity,
+  SubscriptionEntity,
+} from '../../../../src/common/entities';
 import { ConflictError, NotFoundError } from '../../../../src/common/errors';
 import { SubscriptionApplicationService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepository } from '../../../../src/modules/subscription/subscription.repository';
@@ -10,14 +10,14 @@ import type { RepositoryProvider } from '../../../../src/integrations/github/git
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import type { EmailService } from '../../../../src/integrations/email/email.service';
 
-const repositoryRecord: Repository = {
+const repositoryRecord: RepositoryEntity = {
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: null,
   updatedAt: new Date('2024-01-01T00:00:00.000Z'),
 };
 
-const subscriptionRecord: Subscription = {
+const subscriptionRecord: SubscriptionEntity = {
   id: 'sub-1',
   email: 'test@example.com',
   confirmed: false,

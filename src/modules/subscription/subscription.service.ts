@@ -4,8 +4,10 @@ import {
   SubscriptionsQueryDto,
   TokenParamDto,
 } from './subscription.schema';
-import { Subscription } from '../../generated/prisma/client';
-import { SubscriptionWithRepository } from '../../common/types/subscription-with-repository.type';
+import type {
+  SubscriptionEntity,
+  SubscriptionWithRepositoryEntity,
+} from '../../common/entities';
 import { RepositoryRepository } from '../repository/repository.repository';
 import { BadRequestError, NotFoundError } from '../../common/errors';
 import { EmailService } from '../../integrations/email/email.service';
@@ -21,12 +23,12 @@ export interface SubscriptionServiceDependencies {
 }
 
 export interface SubscriptionService {
-  subscribe(input: SubscribeDto): Promise<Subscription>;
+  subscribe(input: SubscribeDto): Promise<SubscriptionEntity>;
   confirmSubscription(input: TokenParamDto): Promise<void>;
   unsubscribeByToken(input: TokenParamDto): Promise<void>;
   getSubscriptionsByEmail(
     input: SubscriptionsQueryDto,
-  ): Promise<SubscriptionWithRepository[]>;
+  ): Promise<SubscriptionWithRepositoryEntity[]>;
 }
 
 export class SubscriptionApplicationService implements SubscriptionService {
@@ -44,7 +46,7 @@ export class SubscriptionApplicationService implements SubscriptionService {
     this.appBaseUrl = dependencies.appBaseUrl;
   }
 
-  async subscribe({ email, repo }: SubscribeDto): Promise<Subscription> {
+  async subscribe({ email, repo }: SubscribeDto): Promise<SubscriptionEntity> {
     await this.validateRepositoryExists(repo);
 
     const repoRecord =
@@ -87,7 +89,7 @@ export class SubscriptionApplicationService implements SubscriptionService {
 
   async getSubscriptionsByEmail({
     email,
-  }: SubscriptionsQueryDto): Promise<SubscriptionWithRepository[]> {
+  }: SubscriptionsQueryDto): Promise<SubscriptionWithRepositoryEntity[]> {
     return this.subscriptionRepository.findByEmail(email, true);
   }
 
@@ -99,7 +101,7 @@ export class SubscriptionApplicationService implements SubscriptionService {
   }
 
   private async notifyAndHandleRollback(
-    subscription: Subscription,
+    subscription: SubscriptionEntity,
     repo: string,
     email: string,
   ): Promise<void> {

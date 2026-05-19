@@ -1,19 +1,19 @@
 import type {
-  Repository,
-  Subscription,
-} from '../../../../src/generated/prisma/client';
-import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
+  RepositoryEntity,
+  RepositoryWithSubscriptionsEntity,
+  SubscriptionEntity,
+} from '../../../../src/common/entities';
 import { PrismaRepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import { prismaMock } from '../../../mocks/prisma.mock';
 
-const repository: Repository = {
+const repository: RepositoryEntity = {
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: null,
   updatedAt: new Date('2024-01-01T00:00:00.000Z'),
 };
 
-const subscription: Subscription = {
+const subscription: SubscriptionEntity = {
   id: 'sub-1',
   email: 'test@example.com',
   confirmed: true,
@@ -23,7 +23,7 @@ const subscription: Subscription = {
   repositoryId: 'repo-1',
 };
 
-const repositoryWithSubscriptions: RepositoryWithSubscriptions = {
+const repositoryWithSubscriptions: RepositoryWithSubscriptionsEntity = {
   ...repository,
   subscriptions: [subscription],
 };
@@ -56,7 +56,7 @@ describe('repository.repository', () => {
 
   describe('updateLastSeenTag', () => {
     it('updates and returns repository', async () => {
-      const updated: Repository = {
+      const updated: RepositoryEntity = {
         ...repository,
         lastSeenTag: 'v1.2.3',
       };

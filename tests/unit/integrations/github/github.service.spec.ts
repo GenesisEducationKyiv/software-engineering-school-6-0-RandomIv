@@ -1,5 +1,6 @@
 import { NotFoundError } from '../../../../src/common/errors';
 import { GitHubApiService } from '../../../../src/integrations/github/github.service';
+import { githubReleaseSchema } from '../../../../src/integrations/github/github.schema';
 
 describe('github.service', () => {
   const request = jest.fn();
@@ -35,16 +36,21 @@ describe('github.service', () => {
 
   describe('getLatestRelease', () => {
     it('returns release payload when response is valid', async () => {
-      request.mockResolvedValueOnce({
-        tag_name: 'v1.2.3',
-        html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
-      });
+      request.mockImplementationOnce((_endpoint, schema) =>
+        schema?.parse({
+          tag_name: 'v1.2.3',
+          html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
+        }),
+      );
 
       await expect(service.getLatestRelease('owner/repo')).resolves.toEqual({
         tag: 'v1.2.3',
         url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
       });
-      expect(request).toHaveBeenCalledWith('owner/repo/releases/latest');
+      expect(request).toHaveBeenCalledWith(
+        'owner/repo/releases/latest',
+        githubReleaseSchema,
+      );
     });
 
     it('returns null when repository or latest release is not found', async () => {
@@ -54,7 +60,9 @@ describe('github.service', () => {
     });
 
     it('throws when response does not match schema', async () => {
-      request.mockResolvedValueOnce({ invalid: 'shape' });
+      request.mockImplementationOnce((_endpoint, schema) =>
+        schema?.parse({ invalid: 'shape' }),
+      );
 
       await expect(service.getLatestRelease('owner/repo')).rejects.toThrow();
     });

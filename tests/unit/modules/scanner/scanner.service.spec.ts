@@ -1,5 +1,5 @@
-import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
-import type { Subscription } from '../../../../src/generated/prisma/client';
+import type { RepositoryWithSubscriptionsEntity } from '../../../../src/common/entities';
+import type { SubscriptionEntity } from '../../../../src/common/entities';
 import { RateLimitError } from '../../../../src/common/errors';
 import { ReleaseScannerService } from '../../../../src/modules/scanner/scanner.service';
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
@@ -7,7 +7,7 @@ import type { RepositoryRepository } from '../../../../src/modules/repository/re
 import type { ReleaseProvider } from '../../../../src/integrations/github/github.service';
 import type { EmailService } from '../../../../src/integrations/email/email.service';
 
-const createSubscription = (id: string, email: string): Subscription => ({
+const createSubscription = (id: string, email: string): SubscriptionEntity => ({
   id,
   email,
   confirmed: true,
@@ -18,8 +18,8 @@ const createSubscription = (id: string, email: string): Subscription => ({
 });
 
 const createRepository = (
-  overrides?: Partial<RepositoryWithSubscriptions>,
-): RepositoryWithSubscriptions => ({
+  overrides?: Partial<RepositoryWithSubscriptionsEntity>,
+): RepositoryWithSubscriptionsEntity => ({
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: null,

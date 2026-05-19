@@ -2,7 +2,7 @@ import { logger } from '../../core/logger';
 import { ReleaseProvider } from '../../integrations/github/github.service';
 import { EmailService } from '../../integrations/email/email.service';
 import { RepositoryRepository } from '../repository/repository.repository';
-import { RepositoryWithSubscriptions } from '../../common/types/repository-with-subscriptions.type';
+import type { RepositoryWithSubscriptionsEntity } from '../../common/entities';
 import { RateLimitError } from '../../common/errors';
 import { AppUrls } from '../../common/utils/url-builder.util';
 
@@ -31,7 +31,7 @@ export class ReleaseScannerService implements ScannerService {
   }
 
   async checkReleases(): Promise<void> {
-    const repositories: RepositoryWithSubscriptions[] =
+    const repositories: RepositoryWithSubscriptionsEntity[] =
       await this.repositoryRepository.getActiveRepositories();
 
     for (const repo of repositories) {

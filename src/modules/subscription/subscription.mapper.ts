@@ -1,4 +1,4 @@
-import { SubscriptionWithRepository } from '../../common/types/subscription-with-repository.type';
+import type { SubscriptionWithRepositoryEntity } from '../../common/entities';
 
 export type SubscriptionDto = {
   email: string;
@@ -8,7 +8,7 @@ export type SubscriptionDto = {
 };
 
 export const toSubscriptionDto = (
-  subscription: SubscriptionWithRepository,
+  subscription: SubscriptionWithRepositoryEntity,
 ): SubscriptionDto => ({
   email: subscription.email,
   repo: subscription.repository.fullName,

@@ -3,8 +3,10 @@ import { createApp } from '../../src/app';
 import { AppError, NotFoundError } from '../../src/common/errors';
 import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
 import type { SubscriptionService } from '../../src/modules/subscription/subscription.service';
-import type { Subscription } from '../../src/generated/prisma/client';
-import type { SubscriptionWithRepository } from '../../src/common/types/subscription-with-repository.type';
+import type {
+  SubscriptionEntity,
+  SubscriptionWithRepositoryEntity,
+} from '../../src/common/entities';
 
 const TEST_API_KEY = 'test-api-key';
 
@@ -76,7 +78,7 @@ describe('subscription routes integration', () => {
 
   describe('Protected API endpoints', () => {
     it('POST /api/subscribe returns 200 for valid payload with API key', async () => {
-      const mockSubscription: Subscription = {
+      const mockSubscription: SubscriptionEntity = {
         id: 'sub-1',
         email: 'user@example.com',
         confirmed: false,
@@ -194,7 +196,7 @@ describe('subscription routes integration', () => {
     });
 
     it('GET /api/subscriptions returns mapped subscriptions with API key', async () => {
-      const mockSubscription: SubscriptionWithRepository = {
+      const mockSubscription: SubscriptionWithRepositoryEntity = {
         id: 'sub-1',
         email: 'user@example.com',
         confirmed: true,
@@ -237,7 +239,7 @@ describe('subscription routes integration', () => {
 
   describe('Public web endpoints', () => {
     it('POST /web/subscribe works without API key', async () => {
-      const mockSubscription: Subscription = {
+      const mockSubscription: SubscriptionEntity = {
         id: 'sub-1',
         email: 'user@example.com',
         confirmed: false,
