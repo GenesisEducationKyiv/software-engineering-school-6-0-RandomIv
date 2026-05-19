@@ -6,14 +6,14 @@ import type {
 import { PrismaRepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import { prismaMock } from '../../../mocks/prisma.mock';
 
-const repository: RepositoryEntity = {
+const repositoryRecord: RepositoryEntity = {
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: null,
   updatedAt: new Date('2024-01-01T00:00:00.000Z'),
 };
 
-const subscription: SubscriptionEntity = {
+const subscriptionRecord: SubscriptionEntity = {
   id: 'sub-1',
   email: 'test@example.com',
   confirmed: true,
@@ -24,12 +24,12 @@ const subscription: SubscriptionEntity = {
 };
 
 const repositoryWithSubscriptions: RepositoryWithSubscriptionsEntity = {
-  ...repository,
-  subscriptions: [subscription],
+  ...repositoryRecord,
+  subscriptions: [subscriptionRecord],
 };
 
 describe('repository.repository', () => {
-  const service = new PrismaRepositoryRepository(prismaMock);
+  const repository = new PrismaRepositoryRepository(prismaMock);
 
   describe('getActiveRepositories', () => {
     it('returns repositories with subscriptions and calls prisma with expected query', async () => {
@@ -37,7 +37,7 @@ describe('repository.repository', () => {
         repositoryWithSubscriptions,
       ]);
 
-      const result = await service.getActiveRepositories();
+      const result = await repository.getActiveRepositories();
 
       expect(result).toEqual([repositoryWithSubscriptions]);
       expect(prismaMock.repository.findMany).toHaveBeenCalledWith({
@@ -50,23 +50,26 @@ describe('repository.repository', () => {
       const error = new Error('DB failed');
       prismaMock.repository.findMany.mockRejectedValue(error);
 
-      await expect(service.getActiveRepositories()).rejects.toThrow(error);
+      await expect(repository.getActiveRepositories()).rejects.toThrow(error);
     });
   });
 
   describe('updateLastSeenTag', () => {
     it('updates and returns repository', async () => {
       const updated: RepositoryEntity = {
-        ...repository,
+        ...repositoryRecord,
         lastSeenTag: 'v1.2.3',
       };
       prismaMock.repository.update.mockResolvedValue(updated);
 
-      const result = await service.updateLastSeenTag(repository.id, 'v1.2.3');
+      const result = await repository.updateLastSeenTag(
+        repositoryRecord.id,
+        'v1.2.3',
+      );
 
       expect(result).toEqual(updated);
       expect(prismaMock.repository.update).toHaveBeenCalledWith({
-        where: { id: repository.id },
+        where: { id: repositoryRecord.id },
         data: { lastSeenTag: 'v1.2.3' },
       });
     });
@@ -76,22 +79,24 @@ describe('repository.repository', () => {
       prismaMock.repository.update.mockRejectedValue(error);
 
       await expect(
-        service.updateLastSeenTag(repository.id, 'v1.0.0'),
+        repository.updateLastSeenTag(repositoryRecord.id, 'v1.0.0'),
       ).rejects.toThrow(error);
     });
   });
 
   describe('getOrCreateRepository', () => {
     it('upserts repository by fullName', async () => {
-      prismaMock.repository.upsert.mockResolvedValue(repository);
+      prismaMock.repository.upsert.mockResolvedValue(repositoryRecord);
 
-      const result = await service.getOrCreateRepository(repository.fullName);
+      const result = await repository.getOrCreateRepository(
+        repositoryRecord.fullName,
+      );
 
-      expect(result).toEqual(repository);
+      expect(result).toEqual(repositoryRecord);
       expect(prismaMock.repository.upsert).toHaveBeenCalledWith({
-        where: { fullName: repository.fullName },
+        where: { fullName: repositoryRecord.fullName },
         update: {},
-        create: { fullName: repository.fullName },
+        create: { fullName: repositoryRecord.fullName },
       });
     });
 
@@ -100,7 +105,7 @@ describe('repository.repository', () => {
       prismaMock.repository.upsert.mockRejectedValue(error);
 
       await expect(
-        service.getOrCreateRepository(repository.fullName),
+        repository.getOrCreateRepository(repositoryRecord.fullName),
       ).rejects.toThrow(error);
     });
   });
