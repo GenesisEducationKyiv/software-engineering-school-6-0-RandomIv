@@ -57,7 +57,7 @@ export class NodemailerService implements EmailService {
         html: template.html,
       });
     } catch (error) {
-      logger.error({ err: error, to }, 'Failed to send confirmation email');
+      logger.error({ err: error }, 'Failed to send confirmation email');
       throw new AppError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Failed to send email. Please try again later.',
@@ -88,7 +88,7 @@ export class NodemailerService implements EmailService {
         html: template.html,
       });
     } catch (error) {
-      logger.error({ err: error, to }, 'Failed to send release email');
+      logger.error({ err: error }, 'Failed to send release email');
       throw new AppError(
         HttpStatus.INTERNAL_SERVER_ERROR,
         'Failed to send email. Please try again later.',
