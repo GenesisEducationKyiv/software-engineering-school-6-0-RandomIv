@@ -28,7 +28,7 @@ module.exports = defineConfig([
       sourceType: 'module',
       parserOptions: {
         projectService: {
-          allowDefaultProject: ['prisma.config.ts'],
+          allowDefaultProject: ['prisma.config.ts', 'playwright.config.ts'],
         },
         tsconfigRootDir: __dirname,
       },

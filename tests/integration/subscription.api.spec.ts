@@ -133,9 +133,7 @@ describe('subscription routes integration', () => {
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toContain('text/html');
     expect(response.text).toContain('Unsubscribed');
-    expect(response.text).toContain(
-      'You have been successfully unsubscribed.',
-    );
+    expect(response.text).toContain('You have been successfully unsubscribed.');
 
     const deleted = await prisma.subscription.findUnique({
       where: { id: subscription.id },

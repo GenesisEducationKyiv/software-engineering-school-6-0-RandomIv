@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod'; // Додали сюди ", z"
 import { AppError } from '../../../../src/common/errors';
 import { sendWebError } from '../../../../src/common/utils/web-error.util';
 
@@ -13,7 +13,7 @@ const makeMockResponse = () => {
   return res;
 };
 
-describe('web-error.util — sendWebError', () => {
+describe('web-error.util › sendWebError', () => {
   describe('AppError branch', () => {
     it('renders HTML with 4xx status and "Request failed" title', () => {
       const res = makeMockResponse();
@@ -40,12 +40,11 @@ describe('web-error.util — sendWebError', () => {
     it('returns 400 with "Invalid link" HTML page', () => {
       const res = makeMockResponse();
 
-      // Build a real ZodError via a failed parse
-      const { error } = require('zod')
-        .z.object({ token: require('zod').z.uuid() })
+      const { error } = z
+        .object({ token: z.string().uuid() })
         .safeParse({ token: 'not-a-uuid' });
 
-      sendWebError(res, error);
+      sendWebError(res, error as ZodError);
 
       expect(res.status).toHaveBeenCalledWith(400);
       const html: string = (res.send as jest.Mock).mock.calls[0][0];
