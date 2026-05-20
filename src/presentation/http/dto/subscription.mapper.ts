@@ -1,4 +1,4 @@
-import { SubscriptionWithRepository } from '../../common/types/subscription-with-repository.type';
+import { SubscriptionWithRepository } from '../../../common/types/subscription-with-repository.type';
 
 export const toSubscriptionDto = (
   subscription: SubscriptionWithRepository,

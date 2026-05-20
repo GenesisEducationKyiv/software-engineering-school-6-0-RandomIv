@@ -6,8 +6,8 @@ import {
   subscribeSchema,
   subscriptionsQuerySchema,
   tokenParamSchema,
-} from '../../modules/subscription/subscription.schema';
-import { toSubscriptionDto } from '../../modules/subscription/subscription.mapper';
+} from '../http/dto/subscription.schema';
+import { toSubscriptionDto } from '../http/dto/subscription.mapper';
 import type {
   ConfirmRequest,
   GetSubscriptionsRequest,

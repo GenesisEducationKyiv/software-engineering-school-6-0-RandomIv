@@ -3,7 +3,7 @@ import { SubscriptionController } from './controllers/subscription.controller';
 import { webSubscribeLimiter } from './middlewares/rate-limit.middleware';
 import { renderHtmlMessage } from './views/html.template';
 import { sendWebError } from './utils/web-error.util';
-import { tokenParamSchema } from '../../modules/subscription/subscription.schema';
+import { tokenParamSchema } from './dto/subscription.schema';
 
 export const buildWebRouter = (controller: SubscriptionController): Router => {
   const router = Router();

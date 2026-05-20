@@ -4,7 +4,7 @@ import { HttpClientPort } from '../../application/ports/http-client.port';
 import { LoggerPort } from '../../application/ports/logger.port';
 import { AppError, NotFoundError, RateLimitError } from '../../domain/errors';
 import { HttpStatus } from '../../common/constants/http-status.constants';
-import { githubReleaseSchema, GitHubReleaseResponse } from '../../modules/github/github.schema';
+import { githubReleaseSchema, GitHubReleaseResponse } from './github.schema';
 import { getGitHubCacheKey } from './github-cache-keys';
 
 const GITHUB_API_BASE_URL = 'https://api.github.com/repos';

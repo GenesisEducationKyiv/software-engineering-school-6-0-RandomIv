@@ -7,8 +7,8 @@ import {
   subscribeSchema,
   subscriptionsQuerySchema,
   tokenParamSchema,
-} from '../../../modules/subscription/subscription.schema';
-import { toSubscriptionDto } from '../../../modules/subscription/subscription.mapper';
+} from '../dto/subscription.schema';
+import { toSubscriptionDto } from '../dto/subscription.mapper';
 
 const SUBSCRIBE_OK = {
   message: 'Subscription successful. Confirmation email sent.',
