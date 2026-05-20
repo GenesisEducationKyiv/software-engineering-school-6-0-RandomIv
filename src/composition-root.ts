@@ -118,6 +118,8 @@ export const buildApp = (): BuiltApp => {
 
   const httpApp = buildHttpApp({
     subscriptionController,
+    confirmUseCase: confirm,
+    unsubscribeUseCase: unsubscribe,
     errorRegistry: httpErrorRegistry,
     apiKey: config.API_KEY,
     logger,
@@ -125,7 +127,10 @@ export const buildApp = (): BuiltApp => {
 
   const startGrpcServer = (): Promise<GrpcServer> =>
     buildGrpcServer({
-      subscriptionController,
+      subscribe,
+      confirm,
+      unsubscribe,
+      list,
       errorRegistry: grpcErrorRegistry,
       apiKey: config.API_KEY,
       logger,

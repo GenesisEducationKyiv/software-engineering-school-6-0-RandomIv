@@ -2,7 +2,10 @@ import path from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import { LoggerPort } from '../../application/ports/logger.port';
-import { SubscriptionController } from '../http/controllers/subscription.controller';
+import { SubscribeUseCase } from '../../application/subscription/subscribe.use-case';
+import { ConfirmSubscriptionUseCase } from '../../application/subscription/confirm-subscription.use-case';
+import { UnsubscribeUseCase } from '../../application/subscription/unsubscribe.use-case';
+import { ListSubscriptionsUseCase } from '../../application/subscription/list-subscriptions.use-case';
 import { GrpcExceptionTranslatorRegistry } from './error-translators/grpc-exception-translator.registry';
 import { buildReleaseNotifierHandlers } from './grpc.handlers';
 import type {
@@ -31,7 +34,10 @@ const loadPackage = (): ReleaseNotifierGrpcPackage => {
 };
 
 export interface BuildGrpcServerDeps {
-  subscriptionController: SubscriptionController;
+  subscribe: SubscribeUseCase;
+  confirm: ConfirmSubscriptionUseCase;
+  unsubscribe: UnsubscribeUseCase;
+  list: ListSubscriptionsUseCase;
   errorRegistry: GrpcExceptionTranslatorRegistry;
   apiKey: string;
   logger: LoggerPort;
@@ -48,7 +54,10 @@ export const buildGrpcServer = async (
   server.addService(
     pkg.ReleaseNotifier.service,
     buildReleaseNotifierHandlers({
-      controller: deps.subscriptionController,
+      subscribe: deps.subscribe,
+      confirm: deps.confirm,
+      unsubscribe: deps.unsubscribe,
+      list: deps.list,
       errors: deps.errorRegistry,
       apiKey: deps.apiKey,
     }),

@@ -29,6 +29,10 @@ import { buildGrpcServer } from '../src/presentation/grpc/grpc.server';
 export interface TestComposition {
   app: Application;
   controller: SubscriptionController;
+  subscribeUseCase: SubscribeUseCase;
+  confirmUseCase: ConfirmSubscriptionUseCase;
+  unsubscribeUseCase: UnsubscribeUseCase;
+  listUseCase: ListSubscriptionsUseCase;
   subscriptions: InMemorySubscriptionRepository;
   repositories: InMemoryRepositoryRepository;
   github: FakeGitHubClient;
@@ -81,12 +85,26 @@ export const buildTestApp = (
 
   const app = buildHttpApp({
     subscriptionController: controller,
+    confirmUseCase: confirm,
+    unsubscribeUseCase: unsubscribe,
     errorRegistry,
     apiKey,
     logger,
   });
 
-  return { app, controller, subscriptions, repositories, github, email, apiKey };
+  return {
+    app,
+    controller,
+    subscribeUseCase: subscribe,
+    confirmUseCase: confirm,
+    unsubscribeUseCase: unsubscribe,
+    listUseCase: list,
+    subscriptions,
+    repositories,
+    github,
+    email,
+    apiKey,
+  };
 };
 
 export interface BuiltTestGrpcServer {
@@ -105,7 +123,10 @@ export const buildTestGrpcServer = async (
   ]);
 
   const server = await buildGrpcServer({
-    subscriptionController: ctx.controller,
+    subscribe: ctx.subscribeUseCase,
+    confirm: ctx.confirmUseCase,
+    unsubscribe: ctx.unsubscribeUseCase,
+    list: ctx.listUseCase,
     errorRegistry,
     apiKey: ctx.apiKey,
     logger: new SilentLogger(),

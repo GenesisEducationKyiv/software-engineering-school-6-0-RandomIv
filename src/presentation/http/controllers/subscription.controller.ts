@@ -24,16 +24,6 @@ export class SubscriptionController {
     private readonly list: ListSubscriptionsUseCase,
   ) {}
 
-  // expose the use cases for gRPC reuse
-  get useCases() {
-    return {
-      subscribe: this.subscribe,
-      confirm: this.confirm,
-      unsubscribe: this.unsubscribe,
-      list: this.list,
-    } as const;
-  }
-
   subscribeHandler = async (
     req: Request,
     res: Response,

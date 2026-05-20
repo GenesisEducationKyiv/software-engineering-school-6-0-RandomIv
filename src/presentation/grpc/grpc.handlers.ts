@@ -1,6 +1,9 @@
 import type * as grpc from '@grpc/grpc-js';
 import { UnauthorizedError } from '../../domain/errors';
-import { SubscriptionController } from '../http/controllers/subscription.controller';
+import { SubscribeUseCase } from '../../application/subscription/subscribe.use-case';
+import { ConfirmSubscriptionUseCase } from '../../application/subscription/confirm-subscription.use-case';
+import { UnsubscribeUseCase } from '../../application/subscription/unsubscribe.use-case';
+import { ListSubscriptionsUseCase } from '../../application/subscription/list-subscriptions.use-case';
 import { GrpcExceptionTranslatorRegistry } from './error-translators/grpc-exception-translator.registry';
 import {
   subscribeSchema,
@@ -29,7 +32,10 @@ const ensureAuthorized = (metadata: grpc.Metadata, expected: string): void => {
 };
 
 export interface BuildHandlersDeps {
-  controller: SubscriptionController;
+  subscribe: SubscribeUseCase;
+  confirm: ConfirmSubscriptionUseCase;
+  unsubscribe: UnsubscribeUseCase;
+  list: ListSubscriptionsUseCase;
   errors: GrpcExceptionTranslatorRegistry;
   apiKey: string;
 }
@@ -47,26 +53,24 @@ export const buildReleaseNotifierHandlers = (
         .catch((error: unknown) => callback(deps.errors.translate(error)));
     };
 
-  const useCases = deps.controller.useCases;
-
   return {
     subscribe: wrap<SubscribeRequest, OperationResponse>(async (req, md) => {
       ensureAuthorized(md, deps.apiKey);
       const input = subscribeSchema.parse(req);
-      await useCases.subscribe.execute(input);
+      await deps.subscribe.execute(input);
       return { message: 'Subscription successful. Confirmation email sent.' };
     }),
     confirm: wrap<ConfirmRequest, OperationResponse>(async (req, md) => {
       ensureAuthorized(md, deps.apiKey);
       const { token } = tokenParamSchema.parse({ token: req.token });
-      await useCases.confirm.execute({ token });
+      await deps.confirm.execute({ token });
       return { message: 'Subscription confirmed successfully' };
     }),
     unsubscribe: wrap<UnsubscribeRequest, OperationResponse>(
       async (req, md) => {
         ensureAuthorized(md, deps.apiKey);
         const { token } = tokenParamSchema.parse({ token: req.token });
-        await useCases.unsubscribe.execute({ token });
+        await deps.unsubscribe.execute({ token });
         return { message: 'Unsubscribed successfully' };
       },
     ),
@@ -74,7 +78,7 @@ export const buildReleaseNotifierHandlers = (
       async (req, md) => {
         ensureAuthorized(md, deps.apiKey);
         const { email } = subscriptionsQuerySchema.parse({ email: req.email });
-        const subs = await useCases.list.execute({ email });
+        const subs = await deps.list.execute({ email });
         return { subscriptions: subs.map(toSubscriptionDto) };
       },
     ),

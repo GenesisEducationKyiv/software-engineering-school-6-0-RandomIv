@@ -1,6 +1,8 @@
 import path from 'node:path';
 import express, { Application } from 'express';
 import { SubscriptionController } from './controllers/subscription.controller';
+import { ConfirmSubscriptionUseCase } from '../../application/subscription/confirm-subscription.use-case';
+import { UnsubscribeUseCase } from '../../application/subscription/unsubscribe.use-case';
 import { buildApiRouter } from './api.router';
 import { buildWebRouter } from './web.router';
 import { buildErrorMiddleware } from './middlewares/error.middleware';
@@ -15,6 +17,8 @@ import {
 
 export interface HttpAppDeps {
   subscriptionController: SubscriptionController;
+  confirmUseCase: ConfirmSubscriptionUseCase;
+  unsubscribeUseCase: UnsubscribeUseCase;
   errorRegistry: ExceptionTranslatorRegistry;
   apiKey: string;
   logger: LoggerPort;
@@ -33,7 +37,14 @@ export const buildHttpApp = (deps: HttpAppDeps): Application => {
 
   const apiKeyMiddleware = buildApiKeyMiddleware(deps.apiKey);
   app.use('/api', buildApiRouter(deps.subscriptionController, apiKeyMiddleware));
-  app.use('/web', buildWebRouter(deps.subscriptionController));
+  app.use(
+    '/web',
+    buildWebRouter(
+      deps.subscriptionController,
+      deps.confirmUseCase,
+      deps.unsubscribeUseCase,
+    ),
+  );
 
   app.use((_req, _res, next) => next(new NotFoundError('API route not found')));
   app.use(buildErrorMiddleware(deps.errorRegistry, deps.logger));
