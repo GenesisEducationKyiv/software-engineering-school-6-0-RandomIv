@@ -280,10 +280,12 @@ describe('subscription routes integration', () => {
     it('GET /web/confirm/:token works without API key and renders HTML', async () => {
       const { app, subscriptions } = buildTestApp();
 
-      await request(app).post('/web/subscribe').send({
-        email: 'user@example.com',
-        repo: 'owner/repo',
-      });
+      // Seed via API endpoint (not /web/subscribe) to avoid the web rate limiter
+      // singleton that is shared across all buildTestApp instances in this process.
+      await request(app)
+        .post('/api/subscribe')
+        .set(API_KEY_HEADER, TEST_API_KEY)
+        .send({ email: 'user@example.com', repo: 'owner/repo' });
       const [sub] = subscriptions.all();
       expect(sub).toBeDefined();
 
@@ -302,10 +304,10 @@ describe('subscription routes integration', () => {
     it('GET /web/unsubscribe/:token works without API key and renders HTML', async () => {
       const { app, subscriptions } = buildTestApp();
 
-      await request(app).post('/web/subscribe').send({
-        email: 'user@example.com',
-        repo: 'owner/repo',
-      });
+      await request(app)
+        .post('/api/subscribe')
+        .set(API_KEY_HEADER, TEST_API_KEY)
+        .send({ email: 'user@example.com', repo: 'owner/repo' });
       const [sub] = subscriptions.all();
       expect(sub).toBeDefined();
 
