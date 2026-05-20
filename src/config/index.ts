@@ -8,7 +8,9 @@ import { databaseSchema } from './database.config';
 import { emailSchema } from './email.config';
 import { grpcSchema } from './grpc.config';
 import { githubSchema } from './github.config';
-import { logger } from '../common/logger';
+import { PinoLogger } from '../infrastructure/logging/pino.logger';
+
+const logger = new PinoLogger();
 
 const schema = appSchema
   .extend(authSchema.shape)
