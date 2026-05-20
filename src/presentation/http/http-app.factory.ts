@@ -4,6 +4,7 @@ import { SubscriptionController } from './controllers/subscription.controller';
 import { buildApiRouter } from './api.router';
 import { buildWebRouter } from './web.router';
 import { buildErrorMiddleware } from './middlewares/error.middleware';
+import { buildApiKeyMiddleware } from './middlewares/api-key.middleware';
 import { ExceptionTranslatorRegistry } from './error-translators/exception-translator.registry';
 import { LoggerPort } from '../../application/ports/logger.port';
 import { NotFoundError } from '../../domain/errors';
@@ -30,7 +31,8 @@ export const buildHttpApp = (deps: HttpAppDeps): Application => {
   });
   app.get('/metrics', prometheusMetricsHandler);
 
-  app.use('/api', buildApiRouter(deps.subscriptionController));
+  const apiKeyMiddleware = buildApiKeyMiddleware(deps.apiKey);
+  app.use('/api', buildApiRouter(deps.subscriptionController, apiKeyMiddleware));
   app.use('/web', buildWebRouter(deps.subscriptionController));
 
   app.use((_req, _res, next) => next(new NotFoundError('API route not found')));

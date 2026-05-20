@@ -1,5 +1,6 @@
 import type { Application } from 'express';
 import type * as grpc from '@grpc/grpc-js';
+import { config } from '../src/config';
 import { SubscribeUseCase } from '../src/application/subscription/subscribe.use-case';
 import { ConfirmSubscriptionUseCase } from '../src/application/subscription/confirm-subscription.use-case';
 import { UnsubscribeUseCase } from '../src/application/subscription/unsubscribe.use-case';
@@ -51,7 +52,7 @@ export const buildTestApp = (
   const logger = new SilentLogger();
   const urls = new AppUrlBuilder('http://localhost:3000');
   const tpl = new ConfirmationEmailTemplate(urls);
-  const apiKey = overrides.apiKey ?? 'test-key';
+  const apiKey = overrides.apiKey ?? config.API_KEY;
 
   const subscribe = new SubscribeUseCase(
     subscriptions,
