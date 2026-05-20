@@ -1,49 +1,40 @@
 import { test, expect } from '@playwright/test';
-import { PrismaClient } from '../../src/generated/prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-const databaseUrl =
-  process.env.E2E_DATABASE_URL ??
-  'postgresql://postgres:postgres@localhost:5434/github_notifier';
-let prisma: PrismaClient;
+import {
+  clearEmails,
+  waitForEmail,
+  extractConfirmToken,
+  extractUnsubscribeToken,
+} from './mailhog.helper';
 
-test.beforeAll(async () => {
-  const adapter = new PrismaPg({ connectionString: databaseUrl });
-  prisma = new PrismaClient({ adapter });
-  await prisma.$connect();
+const TEST_REPO = 'facebook/react';
+
+test.beforeEach(async ({ request }) => {
+  await clearEmails(request);
 });
 
-test.afterAll(async () => {
-  if (prisma) {
-    await prisma.$disconnect();
-  }
-});
-test.beforeEach(async () => {
-  await prisma.subscription.deleteMany();
-  await prisma.repository.deleteMany();
-});
-test('subscription confirm and unsubscribe flow', async ({ request, page }) => {
+test('subscription confirm and unsubscribe flow', async ({ page, request }) => {
   const email = `user-${Date.now()}@example.com`;
-  const repo = 'facebook/react';
-  const subscribeResponse = await request.post('/web/subscribe', {
-    data: {
-      email,
-      repo,
-    },
-  });
-  expect(subscribeResponse.status()).toBe(200);
-  const subscription = await prisma.subscription.findFirst({
-    where: { email },
-  });
-  expect(subscription).not.toBeNull();
-  if (!subscription) {
-    throw new Error('Subscription was not created');
-  }
-  await page.goto(`/web/confirm/${subscription.confirmationToken}`);
+
+  await page.goto('/');
+  await page.fill('#email', email);
+  await page.fill('#repo', TEST_REPO);
+  await page.click('#submit-btn');
+
+  const message = page.locator('#message');
+  await expect(message).toBeVisible({ timeout: 15_000 });
+  await expect(message).toHaveClass(/success/);
+
+  const body = await waitForEmail(request, email);
+  const confirmToken = extractConfirmToken(body);
+
+  await page.goto(`/web/confirm/${confirmToken}`);
   await expect(page.getByRole('heading', { name: 'Confirmed' })).toBeVisible();
   await expect(
     page.getByText('Your subscription has been confirmed successfully.'),
   ).toBeVisible();
-  await page.goto(`/web/unsubscribe/${subscription.unsubscribeToken}`);
+
+  const unsubscribeToken = extractUnsubscribeToken(body);
+  await page.goto(`/web/unsubscribe/${unsubscribeToken}`);
   await expect(
     page.getByRole('heading', { name: 'Unsubscribed' }),
   ).toBeVisible();
