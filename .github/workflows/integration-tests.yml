@@ -2,6 +2,7 @@ name: Integration Tests
 
 on:
   push:
+    branches: ["main"]
   pull_request:
 
 jobs:
@@ -14,6 +15,7 @@ jobs:
           node-version: '22'
           cache: 'npm'
       - run: npm ci
+      - run: npm run db:generate
       - run: docker compose -f docker-compose.integration.yml up -d --wait
       - run: npx prisma migrate deploy
       - run: npm run test:integration
