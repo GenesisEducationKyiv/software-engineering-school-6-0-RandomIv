@@ -24,4 +24,14 @@ describe('NodemailerEmailSender', () => {
       sender.send({ to: 'a@b.c', subject: 's', text: 't', html: 'h' }),
     ).rejects.toBeInstanceOf(AppError);
   });
+
+  it('handles non-Error thrown values with Unknown error message', async () => {
+    const sendMail = jest.fn().mockRejectedValue('bad value');
+    const sender = new NodemailerEmailSender({ sendMail } as never, 'sender@x');
+    await expect(
+      sender.send({ to: 'a@b.c', subject: 's', text: 't', html: 'h' }),
+    ).rejects.toMatchObject({
+      message: 'Failed to send email to a@b.c: Unknown error',
+    });
+  });
 });
