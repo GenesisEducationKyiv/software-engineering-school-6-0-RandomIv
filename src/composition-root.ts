@@ -18,6 +18,7 @@ import {
 } from './infrastructure/email/nodemailer.sender';
 import { GitHubHttpClient } from './infrastructure/github/github-http.client';
 import { NodeCronScheduler } from './infrastructure/scheduler/node-cron.scheduler';
+import { SchedulerPort } from './application/ports/scheduler.port';
 
 import { SubscribeUseCase } from './application/subscription/subscribe.use-case';
 import { ConfirmSubscriptionUseCase } from './application/subscription/confirm-subscription.use-case';
@@ -46,7 +47,7 @@ import { FallbackGrpcExceptionTranslator } from './presentation/grpc/error-trans
 export interface BuiltApp {
   httpApp: Application;
   startGrpcServer: () => Promise<GrpcServer>;
-  scheduler: NodeCronScheduler;
+  scheduler: SchedulerPort;
 }
 
 export const buildApp = (): BuiltApp => {

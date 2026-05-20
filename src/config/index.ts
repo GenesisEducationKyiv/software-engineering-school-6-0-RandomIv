@@ -8,9 +8,6 @@ import { databaseSchema } from './database.config';
 import { emailSchema } from './email.config';
 import { grpcSchema } from './grpc.config';
 import { githubSchema } from './github.config';
-import { PinoLogger } from '../infrastructure/logging/pino.logger';
-
-const logger = new PinoLogger();
 
 const schema = appSchema
   .extend(authSchema.shape)
@@ -24,8 +21,8 @@ const schema = appSchema
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
-  logger.error('Invalid or missing environment variables');
-  logger.error({ validationError: z.treeifyError(parsed.error) });
+  console.error('Invalid or missing environment variables');
+  console.error({ validationError: z.treeifyError(parsed.error) });
 
   process.exit(1);
 }

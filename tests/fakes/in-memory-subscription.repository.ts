@@ -5,6 +5,7 @@ import {
 } from '../../src/application/ports/subscription.repository.port';
 import { Subscription } from '../../src/domain/subscription/subscription.entity';
 import { SubscriptionWithRepository } from '../../src/common/types/subscription-with-repository.type';
+import { ConflictError } from '../../src/domain/errors';
 
 interface RepositoryRow { id: string; fullName: string; lastSeenTag: string | null; updatedAt: Date; }
 
@@ -19,7 +20,6 @@ export class InMemorySubscriptionRepository implements SubscriptionRepositoryPor
       s => s.email === input.email && s.repositoryId === input.repositoryId,
     );
     if (exists) {
-      const { ConflictError } = await import('../../src/domain/errors');
       throw new ConflictError('Email already subscribed to this repository');
     }
     const sub = new Subscription(
