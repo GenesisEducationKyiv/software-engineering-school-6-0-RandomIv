@@ -22,6 +22,6 @@ jobs:
       - run: npx prisma migrate deploy
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5433/github_notifier
-      - run: npm run test:integration
+      - run: npm run test:integration:run
       - if: always()
         run: docker compose -f docker-compose.integration.yml down -v
