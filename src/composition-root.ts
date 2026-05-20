@@ -32,6 +32,10 @@ import { ZodExceptionTranslator } from './presentation/http/error-translators/zo
 import { PrismaExceptionTranslator } from './presentation/http/error-translators/prisma.translator';
 import { AppErrorTranslator } from './presentation/http/error-translators/app-error.translator';
 import { FallbackExceptionTranslator } from './presentation/http/error-translators/fallback.translator';
+import { WebExceptionTranslatorRegistry } from './presentation/http/error-translators/web-exception-translator.registry';
+import { AppErrorWebTranslator } from './presentation/http/error-translators/app-error.web-translator';
+import { ZodWebTranslator } from './presentation/http/error-translators/zod.web-translator';
+import { FallbackWebTranslator } from './presentation/http/error-translators/fallback.web-translator';
 import { buildHttpApp } from './presentation/http/http-app.factory';
 import { buildGrpcServer } from './presentation/grpc/grpc.server';
 import { GrpcExceptionTranslatorRegistry } from './presentation/grpc/error-translators/grpc-exception-translator.registry';
@@ -110,6 +114,11 @@ export const buildApp = (): BuiltApp => {
     new AppErrorTranslator(),
     new FallbackExceptionTranslator(config.NODE_ENV === 'development'),
   ]);
+  const webErrorRegistry = new WebExceptionTranslatorRegistry([
+    new ZodWebTranslator(),
+    new AppErrorWebTranslator(),
+    new FallbackWebTranslator(),
+  ]);
   const grpcErrorRegistry = new GrpcExceptionTranslatorRegistry([
     new ZodGrpcExceptionTranslator(),
     new AppErrorGrpcTranslator(),
@@ -121,6 +130,7 @@ export const buildApp = (): BuiltApp => {
     confirmUseCase: confirm,
     unsubscribeUseCase: unsubscribe,
     errorRegistry: httpErrorRegistry,
+    webErrorRegistry,
     apiKey: config.API_KEY,
     logger,
   });

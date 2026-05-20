@@ -12,6 +12,10 @@ import { ZodExceptionTranslator } from '../src/presentation/http/error-translato
 import { PrismaExceptionTranslator } from '../src/presentation/http/error-translators/prisma.translator';
 import { AppErrorTranslator } from '../src/presentation/http/error-translators/app-error.translator';
 import { FallbackExceptionTranslator } from '../src/presentation/http/error-translators/fallback.translator';
+import { WebExceptionTranslatorRegistry } from '../src/presentation/http/error-translators/web-exception-translator.registry';
+import { ZodWebTranslator } from '../src/presentation/http/error-translators/zod.web-translator';
+import { AppErrorWebTranslator } from '../src/presentation/http/error-translators/app-error.web-translator';
+import { FallbackWebTranslator } from '../src/presentation/http/error-translators/fallback.web-translator';
 
 import { InMemorySubscriptionRepository } from './fakes/in-memory-subscription.repository';
 import { InMemoryRepositoryRepository } from './fakes/in-memory-repository.repository';
@@ -82,12 +86,18 @@ export const buildTestApp = (
     new AppErrorTranslator(),
     new FallbackExceptionTranslator(false),
   ]);
+  const webErrorRegistry = new WebExceptionTranslatorRegistry([
+    new ZodWebTranslator(),
+    new AppErrorWebTranslator(),
+    new FallbackWebTranslator(),
+  ]);
 
   const app = buildHttpApp({
     subscriptionController: controller,
     confirmUseCase: confirm,
     unsubscribeUseCase: unsubscribe,
     errorRegistry,
+    webErrorRegistry,
     apiKey,
     logger,
   });

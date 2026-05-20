@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { SubscriptionController } from './controllers/subscription.controller';
 import { ConfirmSubscriptionUseCase } from '../../application/subscription/confirm-subscription.use-case';
 import { UnsubscribeUseCase } from '../../application/subscription/unsubscribe.use-case';
+import { WebExceptionTranslatorRegistry } from './error-translators/web-exception-translator.registry';
 import { webSubscribeLimiter } from './middlewares/rate-limit.middleware';
 import { renderHtmlMessage } from './views/html.template';
 import { sendWebError } from './utils/web-error.util';
@@ -11,6 +12,7 @@ export const buildWebRouter = (
   controller: SubscriptionController,
   confirm: ConfirmSubscriptionUseCase,
   unsubscribe: UnsubscribeUseCase,
+  webErrorRegistry: WebExceptionTranslatorRegistry,
 ): Router => {
   const router = Router();
 
@@ -27,7 +29,7 @@ export const buildWebRouter = (
         ),
       );
     } catch (error) {
-      sendWebError(res, error);
+      sendWebError(res, webErrorRegistry, error);
     }
   });
 
@@ -42,7 +44,7 @@ export const buildWebRouter = (
         ),
       );
     } catch (error) {
-      sendWebError(res, error);
+      sendWebError(res, webErrorRegistry, error);
     }
   });
 

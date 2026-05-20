@@ -8,6 +8,7 @@ import { buildWebRouter } from './web.router';
 import { buildErrorMiddleware } from './middlewares/error.middleware';
 import { buildApiKeyMiddleware } from './middlewares/api-key.middleware';
 import { ExceptionTranslatorRegistry } from './error-translators/exception-translator.registry';
+import { WebExceptionTranslatorRegistry } from './error-translators/web-exception-translator.registry';
 import { LoggerPort } from '../../application/ports/logger.port';
 import { NotFoundError } from '../../domain/errors';
 import {
@@ -20,6 +21,7 @@ export interface HttpAppDeps {
   confirmUseCase: ConfirmSubscriptionUseCase;
   unsubscribeUseCase: UnsubscribeUseCase;
   errorRegistry: ExceptionTranslatorRegistry;
+  webErrorRegistry: WebExceptionTranslatorRegistry;
   apiKey: string;
   logger: LoggerPort;
 }
@@ -43,6 +45,7 @@ export const buildHttpApp = (deps: HttpAppDeps): Application => {
       deps.subscriptionController,
       deps.confirmUseCase,
       deps.unsubscribeUseCase,
+      deps.webErrorRegistry,
     ),
   );
 
