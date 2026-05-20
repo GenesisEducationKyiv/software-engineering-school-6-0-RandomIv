@@ -1,19 +1,11 @@
 import request from 'supertest';
-import app from '../../src/app';
-import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
+import { API_KEY_HEADER } from '../../src/presentation/http/middlewares/api-key.middleware';
+import { config } from '../../src/config';
+import { buildTestApp } from '../test-composition';
 
 describe('app routing integration', () => {
-  let consoleErrorSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    consoleErrorSpy.mockRestore();
-  });
-
   it('serves subscription page on root path', async () => {
+    const { app } = buildTestApp();
     const response = await request(app).get('/');
 
     expect(response.status).toBe(200);
@@ -22,6 +14,7 @@ describe('app routing integration', () => {
   });
 
   it('returns health status', async () => {
+    const { app } = buildTestApp();
     const response = await request(app).get('/health');
 
     expect(response.status).toBe(200);
@@ -30,6 +23,7 @@ describe('app routing integration', () => {
   });
 
   it('returns prometheus metrics', async () => {
+    const { app } = buildTestApp();
     const response = await request(app).get('/metrics');
 
     expect(response.status).toBe(200);
@@ -39,9 +33,10 @@ describe('app routing integration', () => {
   });
 
   it('captures route templates and excludes /metrics from instrumentation', async () => {
+    const { app } = buildTestApp();
     await request(app)
       .get('/api/confirm/not-a-uuid')
-      .set(API_KEY_HEADER, 'test-api-key');
+      .set(API_KEY_HEADER, config.API_KEY);
 
     const metricsResponse = await request(app).get('/metrics');
 
@@ -51,9 +46,10 @@ describe('app routing integration', () => {
   });
 
   it('returns 404 for unknown routes', async () => {
+    const { app } = buildTestApp();
     const response = await request(app)
       .get('/api/unknown-route')
-      .set(API_KEY_HEADER, 'test-api-key');
+      .set(API_KEY_HEADER, config.API_KEY);
 
     expect(response.status).toBe(404);
     expect(response.body).toEqual({

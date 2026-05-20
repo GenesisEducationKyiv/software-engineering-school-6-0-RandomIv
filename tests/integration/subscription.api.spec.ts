@@ -1,41 +1,16 @@
 import request from 'supertest';
-import { AppError, NotFoundError } from '../../src/common/errors';
-import app from '../../src/app';
-import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
-import {
-  confirmSubscription,
-  createSubscription,
-  getSubscriptionsByEmail,
-  unsubscribeByToken,
-} from '../../src/modules/subscription/subscription.service';
+import { API_KEY_HEADER } from '../../src/presentation/http/middlewares/api-key.middleware';
+import { config } from '../../src/config';
+import { buildTestApp } from '../test-composition';
+import { FakeGitHubClient } from '../fakes/fake-github.client';
+import { FakeEmailSender } from '../fakes/fake-email.sender';
 
-jest.mock('../../src/modules/subscription/subscription.service', () => ({
-  createSubscription: jest.fn(),
-  confirmSubscription: jest.fn(),
-  unsubscribeByToken: jest.fn(),
-  getSubscriptionsByEmail: jest.fn(),
-}));
-
-const mockedCreateSubscription = jest.mocked(createSubscription);
-const mockedConfirmSubscription = jest.mocked(confirmSubscription);
-const mockedUnsubscribeByToken = jest.mocked(unsubscribeByToken);
-const mockedGetSubscriptionsByEmail = jest.mocked(getSubscriptionsByEmail);
-const TEST_API_KEY = 'test-api-key';
+const TEST_API_KEY = config.API_KEY;
 
 describe('subscription routes integration', () => {
-  let consoleErrorSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    consoleErrorSpy.mockRestore();
-  });
-
   describe('API endpoints require x-api-key', () => {
     it('blocks POST /api/subscribe without API key', async () => {
+      const { app } = buildTestApp();
       const response = await request(app).post('/api/subscribe').send({
         email: 'user@example.com',
         repo: 'owner/repo',
@@ -46,48 +21,39 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Invalid API key',
       });
-      expect(mockedCreateSubscription).not.toHaveBeenCalled();
     });
 
     it('blocks GET /api/confirm/:token without API key', async () => {
+      const { app } = buildTestApp();
       const response = await request(app).get(
         '/api/confirm/73d7f6d9-f3b2-42b7-b6de-7a12f052f7f4',
       );
 
       expect(response.status).toBe(401);
-      expect(mockedConfirmSubscription).not.toHaveBeenCalled();
     });
 
     it('blocks GET /api/unsubscribe/:token without API key', async () => {
+      const { app } = buildTestApp();
       const response = await request(app).get(
         '/api/unsubscribe/76d9f048-5cd9-4365-960e-c66f7fc9d69d',
       );
 
       expect(response.status).toBe(401);
-      expect(mockedUnsubscribeByToken).not.toHaveBeenCalled();
     });
 
     it('blocks GET /api/subscriptions without API key', async () => {
+      const { app } = buildTestApp();
       const response = await request(app).get(
         '/api/subscriptions?email=user@example.com',
       );
 
       expect(response.status).toBe(401);
-      expect(mockedGetSubscriptionsByEmail).not.toHaveBeenCalled();
     });
   });
 
   describe('Protected API endpoints', () => {
     it('POST /api/subscribe returns 200 for valid payload with API key', async () => {
-      mockedCreateSubscription.mockResolvedValueOnce({
-        id: 'sub-1',
-        email: 'user@example.com',
-        confirmed: false,
-        confirmationToken: '0f6d4db7-bdd9-4f95-a8a6-08539b34d7c6',
-        unsubscribeToken: 'd93f4ce3-bd06-4bbc-a3cf-5ca619fd6f17',
-        createdAt: new Date('2024-01-01T00:00:00.000Z'),
-        repositoryId: 'repo-1',
-      });
+      const { app, email, subscriptions } = buildTestApp();
 
       const response = await request(app)
         .post('/api/subscribe')
@@ -101,13 +67,14 @@ describe('subscription routes integration', () => {
       expect(response.body).toMatchObject({
         message: 'Subscription successful. Confirmation email sent.',
       });
-      expect(mockedCreateSubscription).toHaveBeenCalledWith({
-        email: 'user@example.com',
-        repo: 'owner/repo',
-      });
+      expect(subscriptions.all()).toHaveLength(1);
+      expect(email.sent).toHaveLength(1);
+      expect(email.sent[0]!.to).toBe('user@example.com');
+      expect(email.sent[0]!.subject).toContain('owner/repo');
     });
 
     it('POST /api/subscribe returns 400 for invalid body', async () => {
+      const { app, subscriptions } = buildTestApp();
       const response = await request(app)
         .post('/api/subscribe')
         .set(API_KEY_HEADER, TEST_API_KEY)
@@ -121,13 +88,13 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Validation failed',
       });
-      expect(mockedCreateSubscription).not.toHaveBeenCalled();
+      expect(subscriptions.all()).toHaveLength(0);
     });
 
-    it('POST /api/subscribe maps service errors', async () => {
-      mockedCreateSubscription.mockRejectedValueOnce(
-        new NotFoundError('Repository not found on GitHub'),
-      );
+    it('POST /api/subscribe returns 404 when repository does not exist on GitHub', async () => {
+      const { app, subscriptions } = buildTestApp({
+        github: new FakeGitHubClient({ exists: false }),
+      });
 
       const response = await request(app)
         .post('/api/subscribe')
@@ -142,56 +109,127 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Repository not found on GitHub',
       });
+      expect(subscriptions.all()).toHaveLength(0);
     });
 
-    it('GET /api/confirm/:token works with API key', async () => {
-      mockedConfirmSubscription.mockResolvedValueOnce();
+    it('POST /api/subscribe returns 409 for duplicate email + repo', async () => {
+      const { app, subscriptions } = buildTestApp();
 
-      const token = '73d7f6d9-f3b2-42b7-b6de-7a12f052f7f4';
+      const first = await request(app)
+        .post('/api/subscribe')
+        .set(API_KEY_HEADER, TEST_API_KEY)
+        .send({ email: 'user@example.com', repo: 'owner/repo' });
+      expect(first.status).toBe(200);
+
+      const second = await request(app)
+        .post('/api/subscribe')
+        .set(API_KEY_HEADER, TEST_API_KEY)
+        .send({ email: 'user@example.com', repo: 'owner/repo' });
+
+      expect(second.status).toBe(409);
+      expect(second.body).toEqual({
+        status: 'error',
+        message: 'Email already subscribed to this repository',
+      });
+      expect(subscriptions.all()).toHaveLength(1);
+    });
+
+    it('GET /api/confirm/:token confirms an existing subscription with API key', async () => {
+      const { app, subscriptions } = buildTestApp();
+
+      await request(app)
+        .post('/api/subscribe')
+        .set(API_KEY_HEADER, TEST_API_KEY)
+        .send({ email: 'user@example.com', repo: 'owner/repo' });
+
+      const [sub] = subscriptions.all();
+      expect(sub).toBeDefined();
+
       const response = await request(app)
-        .get(`/api/confirm/${token}`)
+        .get(`/api/confirm/${sub!.confirmationToken}`)
         .set(API_KEY_HEADER, TEST_API_KEY);
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         message: 'Subscription confirmed successfully',
       });
-      expect(mockedConfirmSubscription).toHaveBeenCalledWith({ token });
+      const [confirmed] = subscriptions.all();
+      expect(confirmed!.confirmed).toBe(true);
     });
 
-    it('GET /api/unsubscribe/:token works with API key', async () => {
-      mockedUnsubscribeByToken.mockResolvedValueOnce();
-
-      const token = '76d9f048-5cd9-4365-960e-c66f7fc9d69d';
+    it('GET /api/confirm/:token returns 404 for unknown token', async () => {
+      const { app } = buildTestApp();
       const response = await request(app)
-        .get(`/api/unsubscribe/${token}`)
+        .get('/api/confirm/73d7f6d9-f3b2-42b7-b6de-7a12f052f7f4')
+        .set(API_KEY_HEADER, TEST_API_KEY);
+
+      expect(response.status).toBe(404);
+    });
+
+    it('GET /api/confirm/:token returns 400 for invalid token format', async () => {
+      const { app } = buildTestApp();
+      const response = await request(app)
+        .get('/api/confirm/not-a-uuid')
+        .set(API_KEY_HEADER, TEST_API_KEY);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'Validation failed',
+      });
+    });
+
+    it('GET /api/unsubscribe/:token unsubscribes by token with API key', async () => {
+      const { app, subscriptions } = buildTestApp();
+
+      await request(app)
+        .post('/api/subscribe')
+        .set(API_KEY_HEADER, TEST_API_KEY)
+        .send({ email: 'user@example.com', repo: 'owner/repo' });
+
+      const [sub] = subscriptions.all();
+      expect(sub).toBeDefined();
+
+      const response = await request(app)
+        .get(`/api/unsubscribe/${sub!.unsubscribeToken}`)
         .set(API_KEY_HEADER, TEST_API_KEY);
 
       expect(response.status).toBe(200);
       expect(response.body).toEqual({
         message: 'Unsubscribed successfully',
       });
-      expect(mockedUnsubscribeByToken).toHaveBeenCalledWith({ token });
+      expect(subscriptions.all()).toHaveLength(0);
+    });
+
+    it('GET /api/unsubscribe/:token returns 404 for unknown token', async () => {
+      const { app } = buildTestApp();
+      const response = await request(app)
+        .get('/api/unsubscribe/76d9f048-5cd9-4365-960e-c66f7fc9d69d')
+        .set(API_KEY_HEADER, TEST_API_KEY);
+
+      expect(response.status).toBe(404);
     });
 
     it('GET /api/subscriptions returns mapped subscriptions with API key', async () => {
-      mockedGetSubscriptionsByEmail.mockResolvedValueOnce([
-        {
-          id: 'sub-1',
-          email: 'user@example.com',
-          confirmed: true,
-          confirmationToken: 'a3ef2aa2-f770-451e-b4fd-f57afd94ec2d',
-          unsubscribeToken: 'f202f85e-2d90-414b-8d85-56f8f64d8fd5',
-          createdAt: new Date('2024-01-01T00:00:00.000Z'),
-          repositoryId: 'repo-1',
-          repository: {
-            id: 'repo-1',
-            fullName: 'owner/repo',
-            lastSeenTag: 'v1.0.0',
-            updatedAt: new Date('2024-01-01T00:00:00.000Z'),
-          },
-        },
-      ] as never);
+      const { app, subscriptions, repositories } = buildTestApp();
+
+      // seed a confirmed subscription
+      await request(app)
+        .post('/api/subscribe')
+        .set(API_KEY_HEADER, TEST_API_KEY)
+        .send({ email: 'user@example.com', repo: 'owner/repo' });
+
+      const [sub] = subscriptions.all();
+      await request(app)
+        .get(`/api/confirm/${sub!.confirmationToken}`)
+        .set(API_KEY_HEADER, TEST_API_KEY);
+
+      // give the repo a lastSeenTag so the DTO includes it
+      const repo = [...repositories.byName.values()].find(
+        (r) => r.fullName === 'owner/repo',
+      );
+      expect(repo).toBeDefined();
+      await repositories.updateLastSeenTag(repo!.id, 'v1.0.0');
 
       const response = await request(app)
         .get('/api/subscriptions?email=user@example.com')
@@ -206,17 +244,26 @@ describe('subscription routes integration', () => {
           last_seen_tag: 'v1.0.0',
         },
       ]);
-      expect(mockedGetSubscriptionsByEmail).toHaveBeenCalledWith({
-        email: 'user@example.com',
+    });
+
+    it('GET /api/subscriptions returns 400 for missing email', async () => {
+      const { app } = buildTestApp();
+      const response = await request(app)
+        .get('/api/subscriptions')
+        .set(API_KEY_HEADER, TEST_API_KEY);
+
+      expect(response.status).toBe(400);
+      expect(response.body).toMatchObject({
+        status: 'error',
+        message: 'Validation failed',
       });
     });
   });
 
   describe('Public web endpoints', () => {
     it('POST /web/subscribe works without API key', async () => {
-      mockedCreateSubscription.mockResolvedValueOnce({
-        id: 'sub-1',
-      } as never);
+      const email = new FakeEmailSender();
+      const { app } = buildTestApp({ email });
 
       const response = await request(app).post('/web/subscribe').send({
         email: 'user@example.com',
@@ -227,13 +274,22 @@ describe('subscription routes integration', () => {
       expect(response.body).toEqual({
         message: 'Subscription successful. Confirmation email sent.',
       });
+      expect(email.sent).toHaveLength(1);
     });
 
-    it('GET /web/confirm/:token works without API key', async () => {
-      mockedConfirmSubscription.mockResolvedValueOnce();
-      const token = '866ffeb1-82e7-456e-b5a7-2b2fc345ff16';
+    it('GET /web/confirm/:token works without API key and renders HTML', async () => {
+      const { app, subscriptions } = buildTestApp();
 
-      const response = await request(app).get(`/web/confirm/${token}`);
+      await request(app).post('/web/subscribe').send({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+      });
+      const [sub] = subscriptions.all();
+      expect(sub).toBeDefined();
+
+      const response = await request(app).get(
+        `/web/confirm/${sub!.confirmationToken}`,
+      );
 
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toContain('text/html');
@@ -243,11 +299,19 @@ describe('subscription routes integration', () => {
       );
     });
 
-    it('GET /web/unsubscribe/:token works without API key', async () => {
-      mockedUnsubscribeByToken.mockResolvedValueOnce();
-      const token = '984fc3f9-3800-4a4a-9d2b-d8edff4b97f4';
+    it('GET /web/unsubscribe/:token works without API key and renders HTML', async () => {
+      const { app, subscriptions } = buildTestApp();
 
-      const response = await request(app).get(`/web/unsubscribe/${token}`);
+      await request(app).post('/web/subscribe').send({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+      });
+      const [sub] = subscriptions.all();
+      expect(sub).toBeDefined();
+
+      const response = await request(app).get(
+        `/web/unsubscribe/${sub!.unsubscribeToken}`,
+      );
 
       expect(response.status).toBe(200);
       expect(response.headers['content-type']).toContain('text/html');
@@ -257,10 +321,14 @@ describe('subscription routes integration', () => {
       );
     });
 
-    it('still maps AppError responses in web routes', async () => {
-      mockedCreateSubscription.mockRejectedValueOnce(
-        new AppError(409, 'Email already subscribed to this repository'),
-      );
+    it('still maps AppError responses in web routes (conflict on duplicate)', async () => {
+      const { app } = buildTestApp();
+
+      const first = await request(app).post('/web/subscribe').send({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+      });
+      expect(first.status).toBe(200);
 
       const response = await request(app).post('/web/subscribe').send({
         email: 'user@example.com',
