@@ -14,18 +14,21 @@ It includes:
 
 ## Architecture
 
-Single Node.js service (Express + gRPC) with internal modules:
-- **API layer**: REST routes under `/api` and gRPC service on port `50051`
-- **Business layer**: subscription, repository, GitHub, notification services
-- **Background job**: cron-based release scanner (`RELEASE_CHECK_CRON`)
-- **Persistence**: PostgreSQL via Prisma
-- **Cache**: Redis (optional via `REDIS_URL`)
+Hexagonal layering with inward-pointing dependencies. Wiring lives in `src/composition-root.ts`.
 
-Transport split:
-- `subscription.api.controller.ts` — key-protected REST API transport
-- `subscription.web.controller.ts` — public browser/email transport
-- `grpc.handlers.ts` — gRPC transport
-- shared response mapper: `subscription.mapper.ts`
+```
+src/
+├── domain/         entities + value objects + error classes; no I/O
+├── application/    use cases + ports (interfaces depended on by use cases)
+├── infrastructure/ adapters that implement ports (Prisma, fetch, redis, nodemailer, node-cron, pino)
+├── presentation/   Express + gRPC transports; controllers, routers, error translators
+├── config/         zod-validated environment
+└── composition-root.ts
+```
+
+Each transport (Express API, Express web, gRPC) delegates to the same use cases. Error
+translation is polymorphic: HTTP and gRPC each have a registry of `ExceptionTranslator`s.
+Design rationale: `docs/superpowers/specs/2026-05-20-solid-grasp-refactor-design.md`.
 
 ## Deployment
 
