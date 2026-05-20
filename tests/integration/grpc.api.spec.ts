@@ -1,35 +1,10 @@
-import { createServer } from 'node:net';
 import path from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
+import { buildTestApp, buildTestGrpcServer, TestComposition } from '../test-composition';
 
 const PROTO_PATH = path.resolve(process.cwd(), 'proto/release_notifier.proto');
-
-const getFreePort = async (): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    const server = createServer();
-
-    server.on('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close();
-        reject(new Error('Failed to allocate a free TCP port'));
-        return;
-      }
-
-      const { port } = address;
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-
-        resolve(port);
-      });
-    });
-  });
-};
+const TEST_GRPC_PORT = 50071;
 
 const callUnary = <TResponse>(
   client: grpc.Client,
@@ -62,46 +37,46 @@ const callUnary = <TResponse>(
   });
 };
 
+const buildClient = (address: string): grpc.Client => {
+  const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true,
+  });
+  const grpcObject = grpc.loadPackageDefinition(
+    packageDefinition,
+  ) as grpc.GrpcObject;
+  const releaseNotifierPackage = grpcObject.release_notifier as grpc.GrpcObject;
+  const ClientConstructor =
+    releaseNotifierPackage.ReleaseNotifier as grpc.ServiceClientConstructor;
+
+  return new ClientConstructor(address, grpc.credentials.createInsecure());
+};
+
+const authMetadata = (apiKey: string): grpc.Metadata => {
+  const metadata = new grpc.Metadata();
+  metadata.set('x-api-key', apiKey);
+  return metadata;
+};
+
 describe('gRPC integration', () => {
+  let ctx: TestComposition;
   let grpcServer: grpc.Server | null = null;
   let grpcClient: grpc.Client | null = null;
 
   beforeAll(async () => {
-    const grpcPort = await getFreePort();
-    process.env.GRPC_HOST = '127.0.0.1';
-    process.env.GRPC_PORT = String(grpcPort);
-
-    jest.resetModules();
-    const { startGrpcServer } =
-      await import('../../src/modules/grpc/grpc.server');
-    grpcServer = await startGrpcServer();
-
-    const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-      keepCase: true,
-      longs: String,
-      enums: String,
-      defaults: true,
-      oneofs: true,
-    });
-    const grpcObject = grpc.loadPackageDefinition(
-      packageDefinition,
-    ) as grpc.GrpcObject;
-    const releaseNotifierPackage =
-      grpcObject.release_notifier as grpc.GrpcObject;
-    const ClientConstructor =
-      releaseNotifierPackage.ReleaseNotifier as grpc.ServiceClientConstructor;
-
-    grpcClient = new ClientConstructor(
-      `127.0.0.1:${grpcPort}`,
-      grpc.credentials.createInsecure(),
-    );
+    ctx = buildTestApp({ apiKey: 'grpc-test-key' });
+    const { server, address } = await buildTestGrpcServer(ctx, TEST_GRPC_PORT);
+    grpcServer = server;
+    grpcClient = buildClient(address);
   });
 
   afterAll(async () => {
     if (grpcClient) {
       grpcClient.close();
     }
-
     if (grpcServer) {
       await new Promise<void>((resolve) => {
         grpcServer?.tryShutdown(() => resolve());
@@ -110,19 +85,130 @@ describe('gRPC integration', () => {
   });
 
   it('rejects unauthenticated GetSubscriptions call', async () => {
-    if (!grpcClient) {
-      throw new Error('gRPC client is not initialized');
-    }
-
     const { error } = await callUnary<{ subscriptions: unknown[] }>(
-      grpcClient,
+      grpcClient!,
       'GetSubscriptions',
-      {
-        email: 'user@example.com',
-      },
+      { email: 'user@example.com' },
     );
 
     expect(error).toBeDefined();
     expect(error?.code).toBe(grpc.status.UNAUTHENTICATED);
+  });
+
+  it('rejects unauthenticated Subscribe call', async () => {
+    const { error } = await callUnary<{ message: string }>(
+      grpcClient!,
+      'Subscribe',
+      { email: 'user@example.com', repo: 'owner/repo' },
+    );
+
+    expect(error).toBeDefined();
+    expect(error?.code).toBe(grpc.status.UNAUTHENTICATED);
+  });
+
+  it('Subscribe creates subscription and confirms via Confirm', async () => {
+    const { error, response } = await callUnary<{ message: string }>(
+      grpcClient!,
+      'Subscribe',
+      { email: 'grpc@example.com', repo: 'owner/repo' },
+      authMetadata(ctx.apiKey),
+    );
+
+    expect(error).toBeNull();
+    expect(response?.message).toBe(
+      'Subscription successful. Confirmation email sent.',
+    );
+    expect(ctx.subscriptions.all()).toHaveLength(1);
+
+    const [sub] = ctx.subscriptions.all();
+    const { error: confirmError, response: confirmResponse } = await callUnary<{
+      message: string;
+    }>(
+      grpcClient!,
+      'Confirm',
+      { token: sub!.confirmationToken },
+      authMetadata(ctx.apiKey),
+    );
+
+    expect(confirmError).toBeNull();
+    expect(confirmResponse?.message).toBe('Subscription confirmed successfully');
+    expect(ctx.subscriptions.all()[0]!.confirmed).toBe(true);
+  });
+
+  it('GetSubscriptions returns mapped subscriptions for an email', async () => {
+    // ensure repo has a tag so the DTO includes last_seen_tag
+    const repo = [...ctx.repositories.byName.values()].find(
+      (r) => r.fullName === 'owner/repo',
+    );
+    expect(repo).toBeDefined();
+    await ctx.repositories.updateLastSeenTag(repo!.id, 'v2.0.0');
+
+    const { error, response } = await callUnary<{
+      subscriptions: Array<{
+        email: string;
+        repo: string;
+        confirmed: boolean;
+        last_seen_tag?: string;
+      }>;
+    }>(
+      grpcClient!,
+      'GetSubscriptions',
+      { email: 'grpc@example.com' },
+      authMetadata(ctx.apiKey),
+    );
+
+    expect(error).toBeNull();
+    expect(response?.subscriptions).toHaveLength(1);
+    expect(response?.subscriptions[0]).toMatchObject({
+      email: 'grpc@example.com',
+      repo: 'owner/repo',
+      confirmed: true,
+      last_seen_tag: 'v2.0.0',
+    });
+  });
+
+  it('Unsubscribe removes the subscription', async () => {
+    const [sub] = ctx.subscriptions.all();
+    expect(sub).toBeDefined();
+
+    const { error, response } = await callUnary<{ message: string }>(
+      grpcClient!,
+      'Unsubscribe',
+      { token: sub!.unsubscribeToken },
+      authMetadata(ctx.apiKey),
+    );
+
+    expect(error).toBeNull();
+    expect(response?.message).toBe('Unsubscribed successfully');
+    expect(ctx.subscriptions.all()).toHaveLength(0);
+  });
+
+  it('Subscribe maps validation errors to INVALID_ARGUMENT', async () => {
+    const { error } = await callUnary<{ message: string }>(
+      grpcClient!,
+      'Subscribe',
+      { email: 'not-an-email', repo: 'owner/repo' },
+      authMetadata(ctx.apiKey),
+    );
+
+    expect(error).toBeDefined();
+    expect(error?.code).toBe(grpc.status.INVALID_ARGUMENT);
+  });
+
+  it('Subscribe maps domain NotFoundError when repo does not exist', async () => {
+    ctx.github.state.exists = false;
+    try {
+      const { error } = await callUnary<{ message: string }>(
+        grpcClient!,
+        'Subscribe',
+        { email: 'someone@example.com', repo: 'unknown/repo' },
+        authMetadata(ctx.apiKey),
+      );
+
+      expect(error).toBeDefined();
+      expect(error?.code).toBe(grpc.status.NOT_FOUND);
+    } finally {
+      ctx.github.state.exists = true;
+    }
   });
 });
