@@ -26,15 +26,27 @@ export interface DependencyContainer {
 
 export const createDependencyContainer = (): DependencyContainer => {
   const githubApiService = new GitHubApiService(githubHttpClient);
-
+  const transporter = nodemailer.createTransport(
+    config.SMTP_HOST
+      ? {
+          host: config.SMTP_HOST,
+          port: config.SMTP_PORT ?? 1025,
+          secure: false,
+          auth: {
+            user: config.EMAIL_USER,
+            pass: config.EMAIL_PASS,
+          },
+        }
+      : {
+          service: 'gmail',
+          auth: {
+            user: config.EMAIL_USER,
+            pass: config.EMAIL_PASS,
+          },
+        },
+  );
   const emailService = new NodemailerService({
-    transporter: nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: config.EMAIL_USER,
-        pass: config.EMAIL_PASS,
-      },
-    }),
+    transporter,
     emailUser: config.EMAIL_USER,
   });
 

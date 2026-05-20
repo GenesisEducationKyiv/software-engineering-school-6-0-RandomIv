@@ -9,6 +9,7 @@ import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 import type { RepositoryProvider } from '../../../../src/integrations/github/github.service';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import type { EmailService } from '../../../../src/integrations/email/email.service';
+import { Prisma } from '../../../../src/generated/prisma/client';
 
 const repositoryRecord: RepositoryEntity = {
   id: 'repo-1',
@@ -187,8 +188,8 @@ describe('subscription.service', () => {
     });
 
     it('re-throws non-P2002 Prisma errors without mapping to ConflictError', async () => {
-      githubService.checkRepoExists.mockResolvedValue(true);
-      repositoryService.getOrCreateRepository.mockResolvedValue(
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
+      repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
       );
 
@@ -199,14 +200,14 @@ describe('subscription.service', () => {
       subscriptionRepository.createSubscription.mockRejectedValue(prismaError);
 
       await expect(
-        service.createSubscription({
+        service.subscribe({
           email: 'test@example.com',
           repo: 'owner/repo',
         }),
       ).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
 
       await expect(
-        service.createSubscription({
+        service.subscribe({
           email: 'test@example.com',
           repo: 'owner/repo',
         }),
