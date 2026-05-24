@@ -3,7 +3,6 @@ import type { SubscriptionEntity } from '../../../../src/modules/subscription/en
 import { ConflictError, NotFoundError } from '../../../../src/common/errors';
 import { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepositoryInterface } from '../../../../src/modules/subscription/interfaces/subscription-repository.interface';
-import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import type { EmailService } from '../../../../src/integrations/email/email.service';
 import { Prisma } from '../../../../src/generated/prisma/client';
@@ -14,7 +13,6 @@ const repositoryRecord: RepositoryEntity = {
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: 'v1.0.0',
-  createdAt: new Date(),
   updatedAt: new Date(),
 };
 
@@ -26,7 +24,6 @@ const subscriptionRecord: SubscriptionEntity = {
   unsubscribeToken: 'unsub-token',
   repositoryId: 'repo-1',
   createdAt: new Date(),
-  updatedAt: new Date(),
 };
 
 describe('subscription.service', () => {
