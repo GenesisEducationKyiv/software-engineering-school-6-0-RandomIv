@@ -71,6 +71,9 @@ Copy `.env.example` to `.env` and fill real values.
 | `DATABASE_URL` | Yes | PostgreSQL connection string |
 | `EMAIL_USER` | Yes | Sender Gmail address |
 | `EMAIL_PASS` | Yes | Gmail App Password |
+| `SMTP_HOST` | No | Custom SMTP host (falls back to Gmail transport when not set) |
+| `SMTP_PORT` | No | Custom SMTP port (default `1025` when `SMTP_HOST` is set) |
+| `SMTP_SECURE` | No | `true`/`false` override for SMTP TLS (otherwise auto-detected from port `465`) |
 | `API_KEY` | Yes | API key for protected endpoints |
 | `RELEASE_CHECK_CRON` | No | Cron expression for scanner (default `*/5 * * * *`) |
 | `REDIS_URL` | No | Redis URL for cache |

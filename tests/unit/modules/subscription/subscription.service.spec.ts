@@ -66,7 +66,7 @@ describe('subscription.service', () => {
       appBaseUrl,
     );
 
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   describe('subscribe', () => {

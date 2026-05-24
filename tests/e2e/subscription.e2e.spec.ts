@@ -25,6 +25,8 @@ test('subscription confirm and unsubscribe flow', async ({ page, request }) => {
   await expect(message).toHaveClass(/success/);
 
   const body = await waitForEmail(request, email);
+  expect(body).toContain('/web/confirm/');
+  expect(body).toContain('/web/unsubscribe/');
   const confirmToken = extractConfirmToken(body);
 
   await page.goto(`/web/confirm/${confirmToken}`);

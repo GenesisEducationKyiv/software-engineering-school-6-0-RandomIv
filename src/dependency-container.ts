@@ -39,7 +39,7 @@ export const createDependencyContainer = (): DependencyContainer => {
       ? {
           host: config.SMTP_HOST,
           port: config.SMTP_PORT ?? 1025,
-          secure: false,
+          secure: config.SMTP_SECURE ?? config.SMTP_PORT === 465,
           auth: {
             user: config.EMAIL_USER,
             pass: config.EMAIL_PASS,

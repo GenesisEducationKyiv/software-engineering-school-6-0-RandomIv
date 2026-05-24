@@ -9,15 +9,46 @@ import prisma from '../../src/core/db/db';
 
 const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 const TEST_API_KEY = config.API_KEY;
-const container = createDependencyContainer();
-const app = createApp({
-  apiController: container.apiController,
-  webController: container.webController,
-});
+let app: ReturnType<typeof createApp>;
 
 describe('subscription routes integration', () => {
+  beforeAll(() => {
+    const container = createDependencyContainer();
+    app = createApp({
+      apiController: container.apiController,
+      webController: container.webController,
+    });
+  });
+
   afterEach(() => {
     jest.restoreAllMocks();
+  });
+
+  describe('Security - API endpoints require x-api-key', () => {
+    it('POST /api/subscribe returns 401 when x-api-key is missing', async () => {
+      const response = await request(app).post('/api/subscribe').send({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+      });
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({
+        status: 'error',
+        message: 'Invalid API key',
+      });
+    });
+
+    it('GET /api/subscriptions returns 401 when x-api-key is missing', async () => {
+      const response = await request(app).get(
+        '/api/subscriptions?email=user@example.com',
+      );
+
+      expect(response.status).toBe(401);
+      expect(response.body).toEqual({
+        status: 'error',
+        message: 'Invalid API key',
+      });
+    });
   });
 
   it('POST /api/subscribe creates subscription and sends confirmation email', async () => {

@@ -51,7 +51,7 @@ describe('scanner.service', () => {
   );
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   it('does nothing when there are no active repositories', async () => {

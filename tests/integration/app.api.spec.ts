@@ -4,10 +4,14 @@ import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware'
 import { createDependencyContainer } from '../../src/dependency-container';
 
 describe('app routing integration', () => {
-  const container = createDependencyContainer();
-  const app = createApp({
-    apiController: container.apiController,
-    webController: container.webController,
+  let app: ReturnType<typeof createApp>;
+
+  beforeAll(() => {
+    const container = createDependencyContainer();
+    app = createApp({
+      apiController: container.apiController,
+      webController: container.webController,
+    });
   });
 
   it('serves subscription page on root path', async () => {

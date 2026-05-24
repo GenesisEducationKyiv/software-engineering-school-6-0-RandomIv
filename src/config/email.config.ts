@@ -5,4 +5,8 @@ export const emailSchema = z.object({
   EMAIL_PASS: z.string().min(1),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().optional(),
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .transform((value) => value === 'true')
+    .optional(),
 });
