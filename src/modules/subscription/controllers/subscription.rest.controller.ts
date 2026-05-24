@@ -1,12 +1,12 @@
 import { Request, Response, Router } from 'express';
 import { MESSAGES } from '../../../common/constants/messages.constant';
-import { SubscriptionService } from '../subscription.service';
+import type { SubscriptionService } from '../subscription.service';
 import {
   subscribeSchema,
   subscriptionsQuerySchema,
   tokenParamSchema,
 } from '../subscription.schema';
-import { toSubscriptionDto } from '../subscription.mapper';
+import { toSubscriptionDto } from './subscription.mapper';
 
 export class SubscriptionRestController {
   constructor(private readonly subscriptionService: SubscriptionService) {}

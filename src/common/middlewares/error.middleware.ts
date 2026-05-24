@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from 'express';
 import { ZodError, ZodIssue } from 'zod';
 import { AppError } from '../errors';
-import { HttpStatus } from '../constants/http-status.constants';
+import { HttpStatus } from '../constants/http-status.constant';
 import { config } from '../../config';
 import { logger } from '../../core/logger';
 

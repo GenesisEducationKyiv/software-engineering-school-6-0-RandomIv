@@ -1,13 +1,13 @@
 import { NotFoundError } from '../../../../src/common/errors';
-import { GitHubApiService } from '../../../../src/integrations/github/github.service';
-import {
-  githubReleaseSchema,
-  type GitHubReleaseResponse,
-} from '../../../../src/integrations/github/github.schema';
+import { GitHubService } from '../../../../src/integrations/github/github.service';
+import { type GitHubReleaseResponse } from '../../../../src/integrations/github/github.schema';
+import { GitHubClient } from '../../../../src/integrations/github/interfaces/github-client.interface';
 
 describe('github.service', () => {
   const request = jest.fn();
-  const service = new GitHubApiService(request);
+  const service = new GitHubService({
+    get: request,
+  } as unknown as GitHubClient);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -40,8 +40,8 @@ describe('github.service', () => {
   describe('getLatestRelease', () => {
     it('returns release payload when response is valid', async () => {
       request.mockImplementationOnce(
-        (_endpoint, schema) =>
-          schema?.parse({
+        (_endpoint) =>
+          ({
             tag_name: 'v1.2.3',
             html_url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
           }) as GitHubReleaseResponse,
@@ -51,10 +51,7 @@ describe('github.service', () => {
         tag: 'v1.2.3',
         url: 'https://github.com/owner/repo/releases/tag/v1.2.3',
       });
-      expect(request).toHaveBeenCalledWith(
-        'owner/repo/releases/latest',
-        githubReleaseSchema,
-      );
+      expect(request).toHaveBeenCalledWith('owner/repo/releases/latest');
     });
 
     it('returns null when repository or latest release is not found', async () => {
@@ -65,8 +62,7 @@ describe('github.service', () => {
 
     it('throws when response does not match schema', async () => {
       request.mockImplementationOnce(
-        (_endpoint, schema) =>
-          schema?.parse({ invalid: 'shape' }) as GitHubReleaseResponse,
+        (_endpoint) => ({ invalid: 'shape' }) as unknown,
       );
 
       await expect(service.getLatestRelease('owner/repo')).rejects.toThrow();

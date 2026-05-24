@@ -1,4 +1,4 @@
-import type { SubscriptionWithRepositoryEntity } from '../../common/entities';
+import type { SubscriptionWithRepositoryEntity } from '../entities/subscription-with-repository.entity';
 
 export type SubscriptionDto = {
   email: string;

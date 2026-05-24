@@ -1,6 +1,6 @@
 import { Request, Response, Router } from 'express';
 import { MESSAGES } from '../../../common/constants/messages.constant';
-import { SubscriptionService } from '../subscription.service';
+import type { SubscriptionService } from '../subscription.service';
 import { subscribeSchema, tokenParamSchema } from '../subscription.schema';
 import { webSubscribeLimiter } from '../../../common/middlewares/rate-limit.middleware';
 import { renderHtmlMessage } from '../../../views/html.template';

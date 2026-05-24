@@ -1,57 +1,33 @@
 import { NotFoundError } from '../../common/errors';
 import { githubReleaseSchema } from './github.schema';
-import { z } from 'zod';
+import { GitHubClient } from './interfaces/github-client.interface';
+import { GitHubRelease } from './interfaces/github-release.interface';
 
-type GitHubRequest = <T>(
-  endpoint: string,
-  schema?: z.ZodSchema<T>,
-) => Promise<T>;
-
-export interface RepositoryProvider {
-  checkRepoExists(repository: string): Promise<boolean>;
-}
-
-export interface ReleaseProvider {
-  getLatestRelease(
-    repository: string,
-  ): Promise<{ tag: string; url: string } | null>;
-}
-
-export class GitHubApiService implements RepositoryProvider, ReleaseProvider {
-  constructor(private readonly request: GitHubRequest) {}
+export class GitHubService {
+  constructor(private readonly client: GitHubClient) {}
 
   async checkRepoExists(repository: string): Promise<boolean> {
     try {
-      await this.request<unknown>(repository);
-
+      await this.client.get(repository);
       return true;
     } catch (error) {
-      if (error instanceof NotFoundError) {
-        return false;
-      }
-
+      if (error instanceof NotFoundError) return false;
       throw error;
     }
   }
 
-  async getLatestRelease(
-    repository: string,
-  ): Promise<{ tag: string; url: string } | null> {
+  async getLatestRelease(repository: string): Promise<GitHubRelease | null> {
     try {
-      const data = await this.request(
-        `${repository}/releases/latest`,
-        githubReleaseSchema,
-      );
+      const rawData = await this.client.get(`${repository}/releases/latest`);
+
+      const parsedData = githubReleaseSchema.parse(rawData);
 
       return {
-        tag: data.tag_name,
-        url: data.html_url,
+        tag: parsedData.tag_name,
+        url: parsedData.html_url,
       };
     } catch (error) {
-      if (error instanceof NotFoundError) {
-        return null;
-      }
-
+      if (error instanceof NotFoundError) return null;
       throw error;
     }
   }

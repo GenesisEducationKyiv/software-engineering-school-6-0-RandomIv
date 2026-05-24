@@ -1,7 +1,7 @@
 import type { NextFunction, Request, Response } from 'express';
 import { z } from 'zod';
 import { AppError } from '../../../../src/common/errors';
-import { HttpStatus } from '../../../../src/common/constants/http-status.constants';
+import { HttpStatus } from '../../../../src/common/constants/http-status.constant';
 import { errorHandler } from '../../../../src/common/middlewares/error.middleware';
 
 type MockResponse = Response & {

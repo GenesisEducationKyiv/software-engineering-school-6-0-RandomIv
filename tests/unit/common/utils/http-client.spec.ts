@@ -1,4 +1,4 @@
-import { HttpStatus } from '../../../../src/common/constants/http-status.constants';
+import { HttpStatus } from '../../../../src/common/constants/http-status.constant';
 import {
   AppError,
   NotFoundError,

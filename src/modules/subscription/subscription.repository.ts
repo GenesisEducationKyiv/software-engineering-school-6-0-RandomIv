@@ -1,30 +1,10 @@
 import { PrismaClient, Prisma } from '../../generated/prisma/client';
 import { ConflictError } from '../../common/errors';
-import type {
-  SubscriptionEntity,
-  SubscriptionWithRepositoryEntity,
-} from '../../common/entities';
+import type { SubscriptionEntity } from './entities/subscription.entity';
+import type { SubscriptionWithRepositoryEntity } from './entities/subscription-with-repository.entity';
+import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
 
-export interface SubscriptionRepository {
-  createSubscription(data: {
-    email: string;
-    confirmed: boolean;
-    repositoryId: string;
-  }): Promise<SubscriptionEntity>;
-
-  findByConfirmationToken(token: string): Promise<SubscriptionEntity | null>;
-
-  updateConfirmation(subscriptionId: string): Promise<void>;
-
-  deleteByUnsubscribeToken(token: string): Promise<number>;
-
-  findByEmail(
-    email: string,
-    confirmedOnly?: boolean,
-  ): Promise<SubscriptionWithRepositoryEntity[]>;
-}
-
-export class PrismaSubscriptionRepository implements SubscriptionRepository {
+export class PrismaSubscriptionRepository implements SubscriptionRepositoryInterface {
   constructor(private readonly prismaClient: PrismaClient) {}
 
   async createSubscription(data: {

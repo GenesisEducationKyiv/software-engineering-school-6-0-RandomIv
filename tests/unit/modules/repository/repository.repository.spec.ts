@@ -1,8 +1,6 @@
-import type {
-  RepositoryEntity,
-  RepositoryWithSubscriptionsEntity,
-  SubscriptionEntity,
-} from '../../../../src/common/entities';
+import type { RepositoryEntity } from '../../../../src/modules/repository/entities/repository.entity';
+import type { RepositoryWithSubscriptionsEntity } from '../../../../src/modules/repository/entities/repository-with-subscription.entity';
+import type { SubscriptionEntity } from '../../../../src/modules/subscription/entities/subscription.entity';
 import { PrismaRepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import { prismaMock } from '../../../mocks/prisma.mock';
 

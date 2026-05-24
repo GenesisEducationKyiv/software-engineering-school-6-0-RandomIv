@@ -1,6 +1,6 @@
 import { status, type ServiceError } from '@grpc/grpc-js';
 import { ZodError } from 'zod';
-import { HttpStatus } from '../../common/constants/http-status.constants';
+import { HttpStatus } from '../../common/constants/http-status.constant';
 import { AppError } from '../../common/errors';
 
 const grpcStatusByHttpStatus: Partial<Record<number, status>> = {

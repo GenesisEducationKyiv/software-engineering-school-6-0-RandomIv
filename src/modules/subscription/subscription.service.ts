@@ -1,50 +1,26 @@
-import { RepositoryProvider } from '../../integrations/github/github.service';
 import {
   SubscribeDto,
   SubscriptionsQueryDto,
   TokenParamDto,
 } from './subscription.schema';
-import type {
-  SubscriptionEntity,
-  SubscriptionWithRepositoryEntity,
-} from '../../common/entities';
+import type { SubscriptionEntity } from './entities/subscription.entity';
+import type { SubscriptionWithRepositoryEntity } from './entities/subscription-with-repository.entity';
 import { RepositoryRepository } from '../repository/repository.repository';
 import { BadRequestError, NotFoundError } from '../../common/errors';
 import { EmailService } from '../../integrations/email/email.service';
-import { SubscriptionRepository } from './subscription.repository';
+import type { RepositoryProvider } from './interfaces/repository-provider.interface';
+import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
 import { AppUrls } from '../../common/utils/url-builder.util';
+import { SubscriptionNotificationError } from './subscription.error';
 
-export interface SubscriptionServiceDependencies {
-  subscriptionRepository: SubscriptionRepository;
-  repositoryProvider: RepositoryProvider;
-  repositoryRepository: RepositoryRepository;
-  emailService: EmailService;
-  appBaseUrl: string;
-}
-
-export interface SubscriptionService {
-  subscribe(input: SubscribeDto): Promise<SubscriptionEntity>;
-  confirmSubscription(input: TokenParamDto): Promise<void>;
-  unsubscribeByToken(input: TokenParamDto): Promise<void>;
-  getSubscriptionsByEmail(
-    input: SubscriptionsQueryDto,
-  ): Promise<SubscriptionWithRepositoryEntity[]>;
-}
-
-export class SubscriptionApplicationService implements SubscriptionService {
-  private readonly subscriptionRepository: SubscriptionRepository;
-  private readonly repositoryProvider: RepositoryProvider;
-  private readonly repositoryRepository: RepositoryRepository;
-  private readonly emailService: EmailService;
-  private readonly appBaseUrl: string;
-
-  constructor(dependencies: SubscriptionServiceDependencies) {
-    this.subscriptionRepository = dependencies.subscriptionRepository;
-    this.repositoryProvider = dependencies.repositoryProvider;
-    this.repositoryRepository = dependencies.repositoryRepository;
-    this.emailService = dependencies.emailService;
-    this.appBaseUrl = dependencies.appBaseUrl;
-  }
+export class SubscriptionService {
+  constructor(
+    private readonly subscriptionRepository: SubscriptionRepositoryInterface,
+    private readonly repositoryProvider: RepositoryProvider,
+    private readonly repositoryRepository: RepositoryRepository,
+    private readonly emailService: EmailService,
+    private readonly appBaseUrl: string,
+  ) {}
 
   async subscribe({ email, repo }: SubscribeDto): Promise<SubscriptionEntity> {
     await this.validateRepositoryExists(repo);
@@ -121,11 +97,11 @@ export class SubscriptionApplicationService implements SubscriptionService {
         confirmationUrl,
         unsubscribeUrl,
       );
-    } catch (error) {
+    } catch {
       await this.subscriptionRepository.deleteByUnsubscribeToken(
         subscription.unsubscribeToken,
       );
-      throw error;
+      throw new SubscriptionNotificationError();
     }
   }
 }

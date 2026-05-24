@@ -1,30 +1,23 @@
 import { logger } from '../../core/logger';
-import { ReleaseProvider } from '../../integrations/github/github.service';
 import { EmailService } from '../../integrations/email/email.service';
 import { RepositoryRepository } from '../repository/repository.repository';
+import type { RepositoryWithSubscriptionsEntity } from '../repository/entities/repository-with-subscription.entity';
+import type { SubscriptionEntity } from '../subscription/entities/subscription.entity';
 import type {
-  RepositoryWithSubscriptionsEntity,
-  SubscriptionEntity,
-} from '../../common/entities';
+  LatestRelease,
+  ReleaseProvider,
+} from './interfaces/release-provider.interface';
 import { RateLimitError } from '../../common/errors';
 import { AppUrls } from '../../common/utils/url-builder.util';
-export interface ReleaseScannerDependencies {
-  releaseProvider: ReleaseProvider;
-  emailService: EmailService;
-  repositoryRepository: RepositoryRepository;
-  appBaseUrl: string;
-}
+
 export class ScannerService {
-  private readonly releaseProvider: ReleaseProvider;
-  private readonly emailService: EmailService;
-  private readonly repositoryRepository: RepositoryRepository;
-  private readonly appBaseUrl: string;
-  constructor(dependencies: ReleaseScannerDependencies) {
-    this.releaseProvider = dependencies.releaseProvider;
-    this.emailService = dependencies.emailService;
-    this.repositoryRepository = dependencies.repositoryRepository;
-    this.appBaseUrl = dependencies.appBaseUrl;
-  }
+  constructor(
+    private readonly releaseProvider: ReleaseProvider,
+    private readonly emailService: EmailService,
+    private readonly repositoryRepository: RepositoryRepository,
+    private readonly appBaseUrl: string,
+  ) {}
+
   async checkReleases(): Promise<void> {
     const repositories =
       await this.repositoryRepository.getActiveRepositories();
@@ -34,7 +27,7 @@ export class ScannerService {
       } catch (error) {
         if (error instanceof RateLimitError) {
           logger.warn(
-            '[Scanner] GitHub API rate limit hit. Pausing scanner until next cron cycle.',
+            '[Scanner] Provider rate limit hit. Pausing scanner until next cron cycle.',
           );
           break;
         }
@@ -68,7 +61,7 @@ export class ScannerService {
   }
   private async notifySubscribers(
     repo: RepositoryWithSubscriptionsEntity,
-    latestRelease: { tag: string; url: string },
+    latestRelease: LatestRelease,
   ): Promise<boolean> {
     let allEmailsSent = true;
     for (const sub of repo.subscriptions) {
@@ -86,7 +79,7 @@ export class ScannerService {
   private async sendEmailToSubscriber(
     repoFullName: string,
     sub: SubscriptionEntity,
-    latestRelease: { tag: string; url: string },
+    latestRelease: LatestRelease,
   ): Promise<boolean> {
     try {
       const unsubscribeUrl = AppUrls.unsubscribe(

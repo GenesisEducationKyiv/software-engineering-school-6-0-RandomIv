@@ -1,5 +1,5 @@
 import { RateLimitError, AppError, NotFoundError } from '../errors';
-import { HttpStatus } from '../constants/http-status.constants';
+import { HttpStatus } from '../constants/http-status.constant';
 
 type FetchOptions = RequestInit & {
   params?: Record<string, string | number | boolean | null | undefined>;

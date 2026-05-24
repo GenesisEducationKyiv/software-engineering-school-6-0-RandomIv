@@ -1,21 +1,28 @@
 import prisma from './core/db/db';
 import nodemailer from 'nodemailer';
 import { config } from './config';
-import { githubHttpClient } from './integrations/github/github.http-client';
-import { GitHubApiService } from './integrations/github/github.service';
 import { NodemailerService } from './integrations/email/email.service';
 import { PrismaRepositoryRepository } from './modules/repository/repository.repository';
 import { ScannerService } from './modules/scanner/scanner.service';
-import { SubscriptionApplicationService } from './modules/subscription/subscription.service';
+import { SubscriptionService } from './modules/subscription/subscription.service';
 import { PrismaSubscriptionRepository } from './modules/subscription/subscription.repository';
-import { ReleaseCheckScheduler } from './scheduler/release-check.scheduler';
+import { ReleaseCheckScheduler } from './schedulers/release-check.scheduler';
+import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
+
+import { SubscriptionRestController } from './modules/subscription/controllers/subscription.rest.controller';
+import { SubscriptionWebController } from './modules/subscription/controllers/subscription.web.controller';
 import {
   SubscriptionGrpcController,
   createSubscriptionGrpcHandlers,
 } from './modules/subscription/controllers/subscription.grpc.controller';
-import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
-import { SubscriptionRestController } from './modules/subscription/controllers/subscription.rest.controller';
-import { SubscriptionWebController } from './modules/subscription/controllers/subscription.web.controller';
+
+import { GithubRepositoryProvider } from './modules/subscription/providers/github-repository.provider';
+import { GithubReleaseProvider } from './modules/scanner/providers/github-release.provider';
+
+import { cacheService } from './core/cache/cache.service';
+import { HttpGitHubClient } from './integrations/github/http-github.client';
+import { CachedGitHubClient } from './integrations/github/cached-github.client';
+import { GitHubService } from './integrations/github/github.service';
 
 export interface DependencyContainer {
   apiController: SubscriptionRestController;
@@ -25,7 +32,8 @@ export interface DependencyContainer {
 }
 
 export const createDependencyContainer = (): DependencyContainer => {
-  const githubApiService = new GitHubApiService(githubHttpClient);
+  const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
+
   const transporter = nodemailer.createTransport(
     config.SMTP_HOST
       ? {
@@ -45,30 +53,39 @@ export const createDependencyContainer = (): DependencyContainer => {
           },
         },
   );
+
   const emailService = new NodemailerService({
     transporter,
     emailUser: config.EMAIL_USER,
   });
 
-  const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
-
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
 
-  const subscriptionService = new SubscriptionApplicationService({
-    subscriptionRepository,
-    repositoryProvider: githubApiService,
-    repositoryRepository,
-    emailService,
-    appBaseUrl,
-  });
+  const pureHttpGitHubClient = new HttpGitHubClient();
+  const cachedGitHubClient = new CachedGitHubClient(
+    pureHttpGitHubClient,
+    cacheService,
+  );
+  const githubService = new GitHubService(cachedGitHubClient);
 
-  const scannerService = new ScannerService({
-    releaseProvider: githubApiService,
+  const repositoryProvider = new GithubRepositoryProvider(githubService);
+  const releaseProvider = new GithubReleaseProvider(githubService);
+
+  const subscriptionService = new SubscriptionService(
+    subscriptionRepository,
+    repositoryProvider,
+    repositoryRepository,
+    emailService,
+    appBaseUrl,
+  );
+
+  const scannerService = new ScannerService(
+    releaseProvider,
     emailService,
     repositoryRepository,
     appBaseUrl,
-  });
+  );
 
   const apiController = new SubscriptionRestController(subscriptionService);
   const webController = new SubscriptionWebController(subscriptionService);
