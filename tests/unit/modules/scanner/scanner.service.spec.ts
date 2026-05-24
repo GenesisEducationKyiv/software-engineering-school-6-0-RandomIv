@@ -1,10 +1,10 @@
-import type { RepositoryWithSubscriptionsEntity } from '../../../../src/common/entities';
-import type { SubscriptionEntity } from '../../../../src/common/entities';
+import type { RepositoryWithSubscriptionsEntity } from '../../../../src/modules/repository/entities/repository-with-subscription.entity';
+import type { SubscriptionEntity } from '../../../../src/modules/subscription/entities/subscription.entity';
 import { RateLimitError } from '../../../../src/common/errors';
 import { ScannerService } from '../../../../src/modules/scanner/scanner.service';
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
-import type { ReleaseProvider } from '../../../../src/integrations/github/github.service';
+import type { ReleaseProvider } from '../../../../src/modules/scanner/interfaces/release-provider.interface';
 import type { EmailService } from '../../../../src/integrations/email/email.service';
 
 const createSubscription = (id: string, email: string): SubscriptionEntity => ({
@@ -43,12 +43,12 @@ describe('scanner.service', () => {
   };
   const appBaseUrl = 'https://app.example.com';
 
-  const service = new ScannerService({
-    repositoryRepository,
+  const service = new ScannerService(
     releaseProvider,
     emailService,
+    repositoryRepository,
     appBaseUrl,
-  });
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();

@@ -1,14 +1,13 @@
-import type {
-  RepositoryEntity,
-  SubscriptionEntity,
-} from '../../../../src/common/entities';
+import type { RepositoryEntity } from '../../../../src/modules/repository/entities/repository.entity';
+import type { SubscriptionEntity } from '../../../../src/modules/subscription/entities/subscription.entity';
 import { ConflictError, NotFoundError } from '../../../../src/common/errors';
-import { SubscriptionApplicationService } from '../../../../src/modules/subscription/subscription.service';
-import type { SubscriptionRepository } from '../../../../src/modules/subscription/subscription.repository';
+import { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
+import type { SubscriptionRepositoryInterface } from '../../../../src/modules/subscription/interfaces/subscription-repository.interface';
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
-import type { RepositoryProvider } from '../../../../src/integrations/github/github.service';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import type { EmailService } from '../../../../src/integrations/email/email.service';
+import type { RepositoryProvider } from '../../../../src/modules/subscription/interfaces/repository-provider.interface';
+import { SubscriptionNotificationError } from '../../../../src/modules/subscription/subscription.error';
 
 const repositoryRecord: RepositoryEntity = {
   id: 'repo-1',
@@ -28,7 +27,7 @@ const subscriptionRecord: SubscriptionEntity = {
 };
 
 describe('subscription.service', () => {
-  const subscriptionRepository: jest.Mocked<SubscriptionRepository> = {
+  const subscriptionRepository: jest.Mocked<SubscriptionRepositoryInterface> = {
     createSubscription: jest.fn(),
     findByConfirmationToken: jest.fn(),
     updateConfirmation: jest.fn(),
@@ -53,13 +52,13 @@ describe('subscription.service', () => {
 
   const appBaseUrl = 'https://app.example.com';
 
-  const service = new SubscriptionApplicationService({
+  const service = new SubscriptionService(
     subscriptionRepository,
     repositoryProvider,
     repositoryRepository,
     emailService,
     appBaseUrl,
-  });
+  );
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -179,7 +178,7 @@ describe('subscription.service', () => {
           email: 'test@example.com',
           repo: 'owner/repo',
         }),
-      ).rejects.toThrow(emailError);
+      ).rejects.toBeInstanceOf(SubscriptionNotificationError);
 
       expect(
         subscriptionRepository.deleteByUnsubscribeToken,

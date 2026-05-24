@@ -6,12 +6,12 @@ import { SubscriptionWebController } from '../../src/modules/subscription/contro
 import type { SubscriptionService } from '../../src/modules/subscription/subscription.service';
 
 describe('app routing integration', () => {
-  const subscriptionService: SubscriptionService = {
+  const subscriptionService = {
     subscribe: jest.fn(),
     confirmSubscription: jest.fn(),
     unsubscribeByToken: jest.fn(),
     getSubscriptionsByEmail: jest.fn(),
-  };
+  } as unknown as SubscriptionService;
   const apiController = new SubscriptionRestController(subscriptionService);
   const webController = new SubscriptionWebController(subscriptionService);
   const app = createApp({ apiController, webController });

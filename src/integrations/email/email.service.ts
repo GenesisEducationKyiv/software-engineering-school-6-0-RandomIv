@@ -1,5 +1,5 @@
 import { Transporter } from 'nodemailer';
-import { HttpStatus } from '../../common/constants/http-status.constants';
+import { HttpStatus } from '../../common/constants/http-status.constant';
 import { AppError } from '../../common/errors';
 import { logger } from '../../core/logger';
 import { confirmationEmailTemplate } from './templates/confirmation.template';

@@ -1,13 +1,13 @@
 import type * as grpc from '@grpc/grpc-js';
 import { MESSAGES } from '../../../common/constants/messages.constant';
 import { validateApiKey } from '../../../common/utils/api-key.util';
-import { SubscriptionService } from '../subscription.service';
+import type { SubscriptionService } from '../subscription.service';
 import {
   subscribeSchema,
   subscriptionsQuerySchema,
   tokenParamSchema,
 } from '../subscription.schema';
-import { toSubscriptionDto } from '../subscription.mapper';
+import { toSubscriptionDto } from './subscription.mapper';
 import { toGrpcServiceError } from '../../../core/grpc/grpc.error-mapper';
 import type {
   ConfirmRequest,

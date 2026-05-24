@@ -1,5 +1,5 @@
 import type { SentMessageInfo, Transporter } from 'nodemailer';
-import { HttpStatus } from '../../../../src/common/constants/http-status.constants';
+import { HttpStatus } from '../../../../src/common/constants/http-status.constant';
 import {
   EmailService,
   NodemailerService,

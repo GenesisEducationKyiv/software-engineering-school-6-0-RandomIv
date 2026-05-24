@@ -80,12 +80,12 @@ describe('gRPC integration', () => {
       import('../../src/core/grpc/grpc.server'),
       import('../../src/modules/subscription/controllers/subscription.grpc.controller'),
     ]);
-    const subscriptionService: SubscriptionService = {
+    const subscriptionService = {
       subscribe: jest.fn(),
       confirmSubscription: jest.fn(),
       unsubscribeByToken: jest.fn(),
       getSubscriptionsByEmail: jest.fn(),
-    };
+    } as unknown as SubscriptionService;
     const grpcController = new SubscriptionGrpcController(
       subscriptionService,
       'test-api-key',

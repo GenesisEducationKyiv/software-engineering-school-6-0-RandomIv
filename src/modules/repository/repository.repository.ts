@@ -1,7 +1,5 @@
-import type {
-  RepositoryEntity,
-  RepositoryWithSubscriptionsEntity,
-} from '../../common/entities';
+import type { RepositoryEntity } from './entities/repository.entity';
+import type { RepositoryWithSubscriptionsEntity } from './entities/repository-with-subscription.entity';
 import { PrismaClient } from '../../generated/prisma/client';
 
 export interface RepositoryRepository {
