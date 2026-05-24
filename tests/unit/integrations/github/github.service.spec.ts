@@ -1,10 +1,13 @@
 import { NotFoundError } from '../../../../src/common/errors';
 import { GitHubService } from '../../../../src/integrations/github/github.service';
 import { type GitHubReleaseResponse } from '../../../../src/integrations/github/github.schema';
+import { GitHubClient } from '../../../../src/integrations/github/interfaces/github-client.interface';
 
 describe('github.service', () => {
   const request = jest.fn();
-  const service = new GitHubService({ get: request } as any);
+  const service = new GitHubService({
+    get: request,
+  } as unknown as GitHubClient);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -59,7 +62,7 @@ describe('github.service', () => {
 
     it('throws when response does not match schema', async () => {
       request.mockImplementationOnce(
-        (_endpoint) => ({ invalid: 'shape' }) as any,
+        (_endpoint) => ({ invalid: 'shape' }) as unknown,
       );
 
       await expect(service.getLatestRelease('owner/repo')).rejects.toThrow();

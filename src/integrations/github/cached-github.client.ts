@@ -29,7 +29,11 @@ export class CachedGitHubClient implements GitHubClient {
 
     if (cacheKey) {
       try {
-        await this.cacheStorage.setJson(cacheKey, result, config.GITHUB_CACHE_TTL_SECONDS);
+        await this.cacheStorage.setJson(
+          cacheKey,
+          result,
+          config.GITHUB_CACHE_TTL_SECONDS,
+        );
       } catch (err) {
         logger.error({ cacheKey, err }, '[Github Cache] Write failed');
       }

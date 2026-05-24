@@ -29,7 +29,9 @@ describe('CachedGitHubClient', () => {
     const result = await cachedClient.get('owner/repo/releases/latest');
 
     expect(result).toEqual({ fresh: 'data' });
-    expect(mockBaseClient.get).toHaveBeenCalledWith('owner/repo/releases/latest');
+    expect(mockBaseClient.get).toHaveBeenCalledWith(
+      'owner/repo/releases/latest',
+    );
     expect(mockCacheStorage.setJson).toHaveBeenCalledWith(
       'github:repos:latest-release:owner/repo',
       { fresh: 'data' },
