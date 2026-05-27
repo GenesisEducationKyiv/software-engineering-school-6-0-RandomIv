@@ -1,6 +1,6 @@
 import type { RepositoryEntity } from '../../../../src/modules/repository/entities/repository.entity';
 import type { SubscriptionEntity } from '../../../../src/modules/subscription/entities/subscription.entity';
-import { ConflictError, NotFoundError } from '../../../../src/common/errors';
+import { NotFoundError } from '../../../../src/common/errors';
 import { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepositoryInterface } from '../../../../src/modules/subscription/interfaces/subscription-repository.interface';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
@@ -130,17 +130,15 @@ describe('subscription.service', () => {
 
       const prismaError = new Prisma.PrismaClientKnownRequestError(
         'Foreign key constraint failed',
-        { code: 'P2003', clientVersion: 'test' } as never,
+        { code: 'P2003', clientVersion: 'test' },
       );
       subscriptionRepository.createSubscription.mockRejectedValue(prismaError);
 
-      await expect(
-        service.subscribe({ email: 'test@example.com', repo: 'owner/repo' }),
-      ).rejects.toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
+      const error = await service
+        .subscribe({ email: 'test@example.com', repo: 'owner/repo' })
+        .catch((e: unknown) => e);
 
-      await expect(
-        service.subscribe({ email: 'test@example.com', repo: 'owner/repo' }),
-      ).rejects.not.toBeInstanceOf(ConflictError);
+      expect(error).toBeInstanceOf(Prisma.PrismaClientKnownRequestError);
     });
   });
 
