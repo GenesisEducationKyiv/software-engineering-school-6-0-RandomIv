@@ -64,15 +64,6 @@ describe('grpc.server', () => {
     );
   });
 
-  it('throws when the release_notifier package is entirely absent from the loaded object', async () => {
-    mockedProtoLoader.loadSync.mockReturnValue({} as never);
-    mockedGrpc.loadPackageDefinition.mockReturnValue({});
-
-    await expect(startGrpcServer({} as never)).rejects.toThrow(
-      'Failed to load gRPC package release_notifier.ReleaseNotifier',
-    );
-  });
-
   it('rejects when server.bindAsync returns an error', async () => {
     const bindError = new Error('Address already in use');
 

@@ -1,6 +1,10 @@
 import type { RepositoryEntity } from '../../../../src/modules/repository/entities/repository.entity';
 import type { SubscriptionEntity } from '../../../../src/modules/subscription/entities/subscription.entity';
-import { NotFoundError } from '../../../../src/common/errors';
+import {
+  BadRequestError,
+  ConflictError,
+  NotFoundError,
+} from '../../../../src/common/errors';
 import { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepositoryInterface } from '../../../../src/modules/subscription/interfaces/subscription-repository.interface';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
@@ -8,6 +12,8 @@ import type { EmailService } from '../../../../src/integrations/email/email.serv
 import { Prisma } from '../../../../src/generated/prisma/client';
 import type { RepositoryProvider } from '../../../../src/modules/subscription/interfaces/repository-provider.interface';
 import { SubscriptionNotificationError } from '../../../../src/modules/subscription/subscription.error';
+import { AppUrls } from '../../../../src/common/utils/url-builder.util';
+import type { SubscriptionWithRepositoryEntity } from '../../../../src/modules/subscription/entities/subscription-with-repository.entity';
 
 const repositoryRecord: RepositoryEntity = {
   id: 'repo-1',
@@ -65,8 +71,6 @@ describe('subscription.service', () => {
       emailService,
       appBaseUrl,
     );
-
-    jest.resetAllMocks();
   });
 
   describe('subscribe', () => {
@@ -89,7 +93,14 @@ describe('subscription.service', () => {
       expect(repositoryProvider.checkRepoExists).toHaveBeenCalledWith(
         'owner/repo',
       );
-      expect(emailService.sendSubscriptionConfirmationEmail).toHaveBeenCalled();
+      expect(
+        emailService.sendSubscriptionConfirmationEmail,
+      ).toHaveBeenCalledWith(
+        'test@example.com',
+        'owner/repo',
+        AppUrls.confirm(appBaseUrl, subscriptionRecord.confirmationToken),
+        AppUrls.unsubscribe(appBaseUrl, subscriptionRecord.unsubscribeToken),
+      );
     });
 
     it('should throw NotFoundError if repository does not exist', async () => {
@@ -120,6 +131,20 @@ describe('subscription.service', () => {
       expect(
         subscriptionRepository.deleteByUnsubscribeToken,
       ).toHaveBeenCalledWith(subscriptionRecord.unsubscribeToken);
+    });
+
+    it('propagates ConflictError from repository', async () => {
+      repositoryProvider.checkRepoExists.mockResolvedValue(true);
+      repositoryRepository.getOrCreateRepository.mockResolvedValue(
+        repositoryRecord,
+      );
+      subscriptionRepository.createSubscription.mockRejectedValue(
+        new ConflictError('Email already subscribed to this repository'),
+      );
+
+      await expect(
+        service.subscribe({ email: 'test@example.com', repo: 'owner/repo' }),
+      ).rejects.toBeInstanceOf(ConflictError);
     });
 
     it('re-throws non-P2002 Prisma errors without mapping to ConflictError', async () => {
@@ -166,6 +191,17 @@ describe('subscription.service', () => {
         service.confirmSubscription({ token: 'invalid-token' }),
       ).rejects.toBeInstanceOf(NotFoundError);
     });
+
+    it('should throw BadRequestError if token was already used', async () => {
+      subscriptionRepository.findByConfirmationToken.mockResolvedValue({
+        ...subscriptionRecord,
+        confirmed: true,
+      });
+
+      await expect(
+        service.confirmSubscription({ token: 'confirm-token' }),
+      ).rejects.toBeInstanceOf(BadRequestError);
+    });
   });
 
   describe('unsubscribeByToken', () => {
@@ -185,6 +221,26 @@ describe('subscription.service', () => {
       await expect(
         service.unsubscribeByToken({ token: 'invalid-token' }),
       ).rejects.toBeInstanceOf(NotFoundError);
+    });
+  });
+
+  describe('getSubscriptionsByEmail', () => {
+    it('returns confirmed subscriptions with repository', async () => {
+      const subscription: SubscriptionWithRepositoryEntity = {
+        ...subscriptionRecord,
+        confirmed: true,
+        repository: repositoryRecord,
+      };
+      subscriptionRepository.findByEmail.mockResolvedValue([subscription]);
+
+      await expect(
+        service.getSubscriptionsByEmail({ email: 'test@example.com' }),
+      ).resolves.toEqual([subscription]);
+
+      expect(subscriptionRepository.findByEmail).toHaveBeenCalledWith(
+        'test@example.com',
+        true,
+      );
     });
   });
 });

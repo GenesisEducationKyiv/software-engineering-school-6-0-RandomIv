@@ -51,6 +51,30 @@ describe('subscription routes integration', () => {
     });
   });
 
+  it('POST /api/subscribe returns 400 for invalid body', async () => {
+    const response = await request(app)
+      .post('/api/subscribe')
+      .set(API_KEY_HEADER, TEST_API_KEY)
+      .send({
+        email: 'not-an-email',
+        repo: 'invalid',
+      });
+
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
+        status: 'error',
+        message: 'Validation failed',
+      }),
+    );
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'email' }),
+        expect.objectContaining({ field: 'repo' }),
+      ]),
+    );
+  });
+
   it('POST /api/subscribe creates subscription and sends confirmation email', async () => {
     const emailSpy = jest
       .spyOn(NodemailerService.prototype, 'sendSubscriptionConfirmationEmail')
@@ -93,6 +117,43 @@ describe('subscription routes integration', () => {
       AppUrls.confirm(appBaseUrl, subscription.confirmationToken),
       AppUrls.unsubscribe(appBaseUrl, subscription.unsubscribeToken),
     );
+    const calledUrl = fetchSpy.mock.calls[0]?.[0];
+    expect(
+      calledUrl instanceof URL ? calledUrl.toString() : calledUrl,
+    ).toContain('api.github.com/repos/owner/repo');
+  });
+
+  it('POST /api/subscribe maps ConflictError to 409', async () => {
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({}), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+
+    const repository = await prisma.repository.create({
+      data: { fullName: 'owner/repo' },
+    });
+    await prisma.subscription.create({
+      data: {
+        email: 'user@example.com',
+        repositoryId: repository.id,
+      },
+    });
+
+    const response = await request(app)
+      .post('/api/subscribe')
+      .set(API_KEY_HEADER, TEST_API_KEY)
+      .send({
+        email: 'user@example.com',
+        repo: 'owner/repo',
+      });
+
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      status: 'error',
+      message: 'Email already subscribed to this repository',
+    });
     expect(fetchSpy).toHaveBeenCalled();
   });
 
@@ -144,6 +205,28 @@ describe('subscription routes integration', () => {
     expect(response.text).toContain(
       'Your subscription has been confirmed successfully.',
     );
+  });
+
+  it('GET /web/confirm/:token renders AppError page when token already used', async () => {
+    const repository = await prisma.repository.create({
+      data: { fullName: 'owner/repo' },
+    });
+    const subscription = await prisma.subscription.create({
+      data: {
+        email: 'user@example.com',
+        confirmed: true,
+        repositoryId: repository.id,
+      },
+    });
+
+    const response = await request(app).get(
+      `/web/confirm/${subscription.confirmationToken}`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers['content-type']).toContain('text/html');
+    expect(response.text).toContain('Request failed');
+    expect(response.text).toContain('Token already used');
   });
 
   it('GET /web/unsubscribe/:token renders unsubscribe page', async () => {
