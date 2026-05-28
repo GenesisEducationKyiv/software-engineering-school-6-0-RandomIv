@@ -68,7 +68,7 @@ This process builds the actual production-ready Docker image for the application
 
 ```bash
 # Install required Playwright browser binaries and system dependencies
-npx playwright install --with-deps
+npx playwright install --with-deps chromium
 
 # Spin up the entire E2E stack, deploy migrations, run Playwright, and clean up
 npm run test:e2e:env

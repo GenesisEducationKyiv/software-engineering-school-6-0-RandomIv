@@ -18,10 +18,4 @@ jobs:
       - run: npm run db:generate
         env:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/github_notifier
-      - run: docker compose -f docker-compose.integration.yml up -d --wait
-      - run: npx prisma migrate deploy
-        env:
-          DATABASE_URL: postgresql://postgres:postgres@localhost:5433/github_notifier
-      - run: npm run test:integration:run
-      - if: always()
-        run: docker compose -f docker-compose.integration.yml down -v
+      - run: npm run test:integration:env

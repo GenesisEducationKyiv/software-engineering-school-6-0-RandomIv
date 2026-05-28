@@ -16,7 +16,7 @@
     "test:integration:up": "docker compose -f docker-compose.integration.yml up -d --wait",
     "test:integration:down": "docker compose -f docker-compose.integration.yml down -v",
     "test:integration:run": "jest --config jest.integration.config.cjs --runInBand",
-    "test:integration:env": "npm run test:integration:up && npm run test:integration:run; EXIT=$?; npm run test:integration:down; exit $EXIT",
+    "test:integration:env": "npm run test:integration:up && DATABASE_URL=postgresql://postgres:postgres@localhost:5433/github_notifier npx prisma migrate deploy && npm run test:integration:run; EXIT=$?; npm run test:integration:down; exit $EXIT",
     "test:e2e:up": "docker compose -f docker-compose.e2e.yml up -d --build --wait",
     "test:e2e:down": "docker compose -f docker-compose.e2e.yml down -v",
     "test:e2e:run": "playwright test",

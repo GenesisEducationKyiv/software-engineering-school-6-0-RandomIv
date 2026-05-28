@@ -1,5 +1,5 @@
 services:
-  e2e-postgres:
+  postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: postgres
@@ -11,28 +11,29 @@ services:
       - /var/lib/postgresql/data
     healthcheck:
       test: ['CMD-SHELL', 'pg_isready -U postgres -d github_notifier']
-      interval: 5s
-      timeout: 3s
+      interval: 2s
+      timeout: 2s
       retries: 10
+      start_period: 2s
 
-  e2e-redis:
+  redis:
     image: redis:7-alpine
     ports:
       - '6381:6379'
     healthcheck:
       test: ['CMD', 'redis-cli', 'ping']
-      interval: 5s
-      timeout: 3s
+      interval: 2s
+      timeout: 2s
       retries: 10
 
-  e2e-mailhog:
-    image: mailhog/mailhog:latest
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
     ports:
       - '8025:8025'
     healthcheck:
       test: ['CMD', 'nc', '-z', 'localhost', '1025']
-      interval: 5s
-      timeout: 3s
+      interval: 2s
+      timeout: 2s
       retries: 10
 
   notifier-app:
@@ -41,9 +42,9 @@ services:
       NODE_ENV: test
       PORT: 3000
       APP_BASE_URL: http://localhost:3001
-      DATABASE_URL: postgresql://postgres:postgres@e2e-postgres:5432/github_notifier
-      REDIS_URL: redis://e2e-redis:6379
-      SMTP_HOST: e2e-mailhog
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/github_notifier
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailhog
       SMTP_PORT: '1025'
       EMAIL_USER: test@example.com
       EMAIL_PASS: test
@@ -52,11 +53,11 @@ services:
     ports:
       - '3001:3000'
     depends_on:
-      e2e-postgres:
+      postgres:
         condition: service_healthy
-      e2e-redis:
+      redis:
         condition: service_healthy
-      e2e-mailhog:
+      mailhog:
         condition: service_healthy
     healthcheck:
       test:
@@ -66,6 +67,6 @@ services:
           '-e',
           "require('http').get('http://localhost:3000/health', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));",
         ]
-      interval: 5s
-      timeout: 5s
-      retries: 20
+      interval: 3s
+      timeout: 3s
+      retries: 15
