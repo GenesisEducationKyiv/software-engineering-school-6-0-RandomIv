@@ -1,115 +1,107 @@
-import prisma from '../../common/utils/db';
-import { checkRepoExists } from '../github/github.service';
 import {
   SubscribeDto,
   SubscriptionsQueryDto,
   TokenParamDto,
 } from './subscription.schema';
-import {
-  Prisma,
-  Repository,
-  Subscription,
-} from '../../generated/prisma/client';
-import { SubscriptionWithRepository } from '../../common/types/subscription-with-repository.type';
-import { getOrCreateRepository } from '../repository/repository.service';
-import {
-  BadRequestError,
-  ConflictError,
-  NotFoundError,
-} from '../../common/errors';
-import { sendSubscriptionConfirmationEmail } from '../notification/email.service';
+import type { SubscriptionEntity } from './entities/subscription.entity';
+import type { SubscriptionWithRepositoryEntity } from './entities/subscription-with-repository.entity';
+import { RepositoryRepository } from '../repository/repository.repository';
+import { BadRequestError, NotFoundError } from '../../common/errors';
+import { EmailService } from '../../integrations/email/email.service';
+import type { RepositoryProvider } from './interfaces/repository-provider.interface';
+import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
+import { AppUrls } from '../../common/utils/url-builder.util';
+import { SubscriptionNotificationError } from './subscription.error';
 
-export const createSubscription = async ({
-  email,
-  repo,
-}: SubscribeDto): Promise<Subscription> => {
-  const repoExists = await checkRepoExists(repo);
+export class SubscriptionService {
+  constructor(
+    private readonly subscriptionRepository: SubscriptionRepositoryInterface,
+    private readonly repositoryProvider: RepositoryProvider,
+    private readonly repositoryRepository: RepositoryRepository,
+    private readonly emailService: EmailService,
+    private readonly appBaseUrl: string,
+  ) {}
 
-  if (!repoExists) {
-    throw new NotFoundError('Repository not found on GitHub');
+  async subscribe({ email, repo }: SubscribeDto): Promise<SubscriptionEntity> {
+    await this.validateRepositoryExists(repo);
+
+    const repoRecord =
+      await this.repositoryRepository.getOrCreateRepository(repo);
+
+    const subscription = await this.subscriptionRepository.createSubscription({
+      email,
+      confirmed: false,
+      repositoryId: repoRecord.id,
+    });
+
+    await this.notifyAndHandleRollback(subscription, repo, email);
+
+    return subscription;
   }
 
-  const repoRecord: Repository = await getOrCreateRepository(repo);
-  let subscription: Subscription;
+  async confirmSubscription({ token }: TokenParamDto): Promise<void> {
+    const subscription =
+      await this.subscriptionRepository.findByConfirmationToken(token);
 
-  try {
-    subscription = await prisma.subscription.create({
-      data: {
-        email,
-        confirmed: false,
-        repositoryId: repoRecord.id,
-      },
-    });
-  } catch (error) {
-    if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
-      error.code === 'P2002'
-    ) {
-      throw new ConflictError('Email already subscribed to this repository');
+    if (!subscription) {
+      throw new NotFoundError('Token not found');
     }
-    throw error;
+
+    if (subscription.confirmed) {
+      throw new BadRequestError('Token already used');
+    }
+
+    await this.subscriptionRepository.updateConfirmation(subscription.id);
   }
 
-  try {
-    await sendSubscriptionConfirmationEmail(
-      email,
-      repo,
-      subscription.confirmationToken,
-      subscription.unsubscribeToken,
-    );
-  } catch (error) {
-    await prisma.subscription.deleteMany({
-      where: { id: subscription.id },
-    });
-    throw error;
+  async unsubscribeByToken({ token }: TokenParamDto): Promise<void> {
+    const count =
+      await this.subscriptionRepository.deleteByUnsubscribeToken(token);
+
+    if (count === 0) {
+      throw new NotFoundError('Token not found');
+    }
   }
 
-  return subscription;
-};
-
-export const confirmSubscription = async ({
-  token,
-}: TokenParamDto): Promise<void> => {
-  const subscription = await prisma.subscription.findUnique({
-    where: { confirmationToken: token },
-  });
-
-  if (!subscription) {
-    throw new NotFoundError('Token not found');
+  async getSubscriptionsByEmail({
+    email,
+  }: SubscriptionsQueryDto): Promise<SubscriptionWithRepositoryEntity[]> {
+    return this.subscriptionRepository.findByEmail(email, true);
   }
 
-  if (subscription.confirmed) {
-    throw new BadRequestError('Token already used');
+  private async validateRepositoryExists(repo: string): Promise<void> {
+    const repoExists = await this.repositoryProvider.checkRepoExists(repo);
+    if (!repoExists) {
+      throw new NotFoundError('Repository not found on GitHub');
+    }
   }
 
-  await prisma.subscription.update({
-    where: { id: subscription.id },
-    data: { confirmed: true },
-  });
-};
+  private async notifyAndHandleRollback(
+    subscription: SubscriptionEntity,
+    repo: string,
+    email: string,
+  ): Promise<void> {
+    try {
+      const confirmationUrl = AppUrls.confirm(
+        this.appBaseUrl,
+        subscription.confirmationToken,
+      );
+      const unsubscribeUrl = AppUrls.unsubscribe(
+        this.appBaseUrl,
+        subscription.unsubscribeToken,
+      );
 
-export const unsubscribeByToken = async ({
-  token,
-}: TokenParamDto): Promise<void> => {
-  const deleteResult = await prisma.subscription.deleteMany({
-    where: { unsubscribeToken: token },
-  });
-
-  if (deleteResult.count === 0) {
-    throw new NotFoundError('Token not found');
+      await this.emailService.sendSubscriptionConfirmationEmail(
+        email,
+        repo,
+        confirmationUrl,
+        unsubscribeUrl,
+      );
+    } catch {
+      await this.subscriptionRepository.deleteByUnsubscribeToken(
+        subscription.unsubscribeToken,
+      );
+      throw new SubscriptionNotificationError();
+    }
   }
-};
-
-export const getSubscriptionsByEmail = async ({
-  email,
-}: SubscriptionsQueryDto): Promise<SubscriptionWithRepository[]> => {
-  return prisma.subscription.findMany({
-    where: {
-      email,
-      confirmed: true,
-    },
-    include: {
-      repository: true,
-    },
-  });
-};
+}

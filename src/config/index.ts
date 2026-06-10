@@ -8,7 +8,7 @@ import { databaseSchema } from './database.config';
 import { emailSchema } from './email.config';
 import { grpcSchema } from './grpc.config';
 import { githubSchema } from './github.config';
-import { logger } from '../common/logger';
+import { logger } from '../core/logger';
 
 const schema = appSchema
   .extend(authSchema.shape)

@@ -1,34 +1,13 @@
-import type { RepositoryWithSubscriptions } from '../../../../src/common/types/repository-with-subscriptions.type';
-import type { Subscription } from '../../../../src/generated/prisma/client';
+import type { RepositoryWithSubscriptionsEntity } from '../../../../src/modules/repository/entities/repository-with-subscription.entity';
+import type { SubscriptionEntity } from '../../../../src/modules/subscription/entities/subscription.entity';
 import { RateLimitError } from '../../../../src/common/errors';
+import { ScannerService } from '../../../../src/modules/scanner/scanner.service';
+import { AppUrls } from '../../../../src/common/utils/url-builder.util';
+import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
+import type { ReleaseProvider } from '../../../../src/modules/scanner/interfaces/release-provider.interface';
+import type { EmailService } from '../../../../src/integrations/email/email.service';
 
-jest.mock('../../../../src/modules/github/github.service', () => ({
-  getLatestReleaseTag: jest.fn(),
-}));
-
-jest.mock('../../../../src/modules/notification/email.service', () => ({
-  sendReleaseEmail: jest.fn(),
-}));
-
-jest.mock('../../../../src/modules/repository/repository.service', () => ({
-  getActiveRepositories: jest.fn(),
-  updateLastSeenTag: jest.fn(),
-}));
-
-import { getLatestReleaseTag } from '../../../../src/modules/github/github.service';
-import { sendReleaseEmail } from '../../../../src/modules/notification/email.service';
-import {
-  getActiveRepositories,
-  updateLastSeenTag,
-} from '../../../../src/modules/repository/repository.service';
-import { checkReleases } from '../../../../src/modules/scanner/scanner.service';
-
-const mockedGetActiveRepositories = jest.mocked(getActiveRepositories);
-const mockedGetLatestReleaseTag = jest.mocked(getLatestReleaseTag);
-const mockedSendReleaseEmail = jest.mocked(sendReleaseEmail);
-const mockedUpdateLastSeenTag = jest.mocked(updateLastSeenTag);
-
-const createSubscription = (id: string, email: string): Subscription => ({
+const createSubscription = (id: string, email: string): SubscriptionEntity => ({
   id,
   email,
   confirmed: true,
@@ -39,8 +18,8 @@ const createSubscription = (id: string, email: string): Subscription => ({
 });
 
 const createRepository = (
-  overrides?: Partial<RepositoryWithSubscriptions>,
-): RepositoryWithSubscriptions => ({
+  overrides?: Partial<RepositoryWithSubscriptionsEntity>,
+): RepositoryWithSubscriptionsEntity => ({
   id: 'repo-1',
   fullName: 'owner/repo',
   lastSeenTag: null,
@@ -50,44 +29,70 @@ const createRepository = (
 });
 
 describe('scanner.service', () => {
+  const repositoryRepository: jest.Mocked<RepositoryRepository> = {
+    getActiveRepositories: jest.fn(),
+    updateLastSeenTag: jest.fn(),
+    getOrCreateRepository: jest.fn(),
+  };
+  const releaseProvider: jest.Mocked<ReleaseProvider> = {
+    getLatestRelease: jest.fn(),
+  };
+  const emailService: jest.Mocked<EmailService> = {
+    sendSubscriptionConfirmationEmail: jest.fn(),
+    sendReleaseEmail: jest.fn(),
+  };
+  const appBaseUrl = 'https://app.example.com';
+
+  const service = new ScannerService(
+    releaseProvider,
+    emailService,
+    repositoryRepository,
+    appBaseUrl,
+  );
+
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   it('does nothing when there are no active repositories', async () => {
-    mockedGetActiveRepositories.mockResolvedValue([]);
+    repositoryRepository.getActiveRepositories.mockResolvedValue([]);
 
-    await checkReleases();
+    await service.checkReleases();
 
-    expect(mockedGetLatestReleaseTag).not.toHaveBeenCalled();
-    expect(mockedSendReleaseEmail).not.toHaveBeenCalled();
-    expect(mockedUpdateLastSeenTag).not.toHaveBeenCalled();
+    expect(releaseProvider.getLatestRelease).not.toHaveBeenCalled();
+    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('skips repository when latest tag is null', async () => {
-    mockedGetActiveRepositories.mockResolvedValue([createRepository()]);
-    mockedGetLatestReleaseTag.mockResolvedValueOnce(null);
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
+      createRepository(),
+    ]);
+    releaseProvider.getLatestRelease.mockResolvedValueOnce(null);
 
-    await checkReleases();
+    await service.checkReleases();
 
-    expect(mockedSendReleaseEmail).not.toHaveBeenCalled();
-    expect(mockedUpdateLastSeenTag).not.toHaveBeenCalled();
+    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('skips repository when latest tag equals lastSeenTag', async () => {
-    mockedGetActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({ lastSeenTag: 'v1.0.0' }),
     ]);
-    mockedGetLatestReleaseTag.mockResolvedValueOnce('v1.0.0');
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
+      tag: 'v1.0.0',
+      url: 'https://github.com/owner/repo/releases/tag/v1.0.0',
+    });
 
-    await checkReleases();
+    await service.checkReleases();
 
-    expect(mockedSendReleaseEmail).not.toHaveBeenCalled();
-    expect(mockedUpdateLastSeenTag).not.toHaveBeenCalled();
+    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('sends notifications and updates lastSeenTag when all emails succeed', async () => {
-    mockedGetActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({
         subscriptions: [
           createSubscription('sub-1', 'a@example.com'),
@@ -95,31 +100,41 @@ describe('scanner.service', () => {
         ],
       }),
     ]);
-    mockedGetLatestReleaseTag.mockResolvedValueOnce('v2.0.0');
-    mockedSendReleaseEmail.mockResolvedValue({ messageId: 'ok' } as never);
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
+      tag: 'v2.0.0',
+      url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
+    });
+    emailService.sendReleaseEmail.mockResolvedValue({
+      messageId: 'ok',
+    } as never);
 
-    await checkReleases();
+    await service.checkReleases();
 
-    expect(mockedSendReleaseEmail).toHaveBeenCalledTimes(2);
-    expect(mockedSendReleaseEmail).toHaveBeenNthCalledWith(
+    expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(2);
+    expect(emailService.sendReleaseEmail).toHaveBeenNthCalledWith(
       1,
       'a@example.com',
       'owner/repo',
       'v2.0.0',
-      'sub-1-unsubscribe-token',
+      'https://github.com/owner/repo/releases/tag/v2.0.0',
+      AppUrls.unsubscribe(appBaseUrl, 'sub-1-unsubscribe-token'),
     );
-    expect(mockedSendReleaseEmail).toHaveBeenNthCalledWith(
+    expect(emailService.sendReleaseEmail).toHaveBeenNthCalledWith(
       2,
       'b@example.com',
       'owner/repo',
       'v2.0.0',
-      'sub-2-unsubscribe-token',
+      'https://github.com/owner/repo/releases/tag/v2.0.0',
+      AppUrls.unsubscribe(appBaseUrl, 'sub-2-unsubscribe-token'),
     );
-    expect(mockedUpdateLastSeenTag).toHaveBeenCalledWith('repo-1', 'v2.0.0');
+    expect(repositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(
+      'repo-1',
+      'v2.0.0',
+    );
   });
 
   it('does not update lastSeenTag when at least one email fails', async () => {
-    mockedGetActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({
         subscriptions: [
           createSubscription('sub-1', 'a@example.com'),
@@ -127,53 +142,68 @@ describe('scanner.service', () => {
         ],
       }),
     ]);
-    mockedGetLatestReleaseTag.mockResolvedValueOnce('v2.0.0');
-    mockedSendReleaseEmail
+    releaseProvider.getLatestRelease.mockResolvedValueOnce({
+      tag: 'v2.0.0',
+      url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
+    });
+    emailService.sendReleaseEmail
       .mockRejectedValueOnce(new Error('SMTP failed'))
       .mockResolvedValueOnce({ messageId: 'ok' } as never);
 
-    await checkReleases();
+    await service.checkReleases();
 
-    expect(mockedSendReleaseEmail).toHaveBeenCalledTimes(2);
-    expect(mockedUpdateLastSeenTag).not.toHaveBeenCalled();
+    expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(2);
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
   it('continues processing next repositories when one repository fails', async () => {
-    mockedGetActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({ id: 'repo-1', fullName: 'owner/first' }),
       createRepository({ id: 'repo-2', fullName: 'owner/second' }),
     ]);
-    mockedGetLatestReleaseTag
+    releaseProvider.getLatestRelease
       .mockRejectedValueOnce(new Error('GitHub unavailable'))
-      .mockResolvedValueOnce('v3.0.0');
-    mockedSendReleaseEmail.mockResolvedValue({ messageId: 'ok' } as never);
+      .mockResolvedValueOnce({
+        tag: 'v3.0.0',
+        url: 'https://github.com/owner/second/releases/tag/v3.0.0',
+      });
+    emailService.sendReleaseEmail.mockResolvedValue({
+      messageId: 'ok',
+    } as never);
 
-    await checkReleases();
+    await service.checkReleases();
 
-    expect(mockedSendReleaseEmail).toHaveBeenCalledTimes(1);
-    expect(mockedSendReleaseEmail).toHaveBeenCalledWith(
+    expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(1);
+    expect(emailService.sendReleaseEmail).toHaveBeenCalledWith(
       'user@example.com',
       'owner/second',
       'v3.0.0',
-      'sub-1-unsubscribe-token',
+      'https://github.com/owner/second/releases/tag/v3.0.0',
+      AppUrls.unsubscribe(appBaseUrl, 'sub-1-unsubscribe-token'),
     );
-    expect(mockedUpdateLastSeenTag).toHaveBeenCalledTimes(1);
-    expect(mockedUpdateLastSeenTag).toHaveBeenCalledWith('repo-2', 'v3.0.0');
+    expect(repositoryRepository.updateLastSeenTag).toHaveBeenCalledTimes(1);
+    expect(repositoryRepository.updateLastSeenTag).toHaveBeenCalledWith(
+      'repo-2',
+      'v3.0.0',
+    );
   });
 
   it('stops current scan cycle when GitHub rate limit is reached', async () => {
-    mockedGetActiveRepositories.mockResolvedValue([
+    repositoryRepository.getActiveRepositories.mockResolvedValue([
       createRepository({ id: 'repo-1', fullName: 'owner/first' }),
       createRepository({ id: 'repo-2', fullName: 'owner/second' }),
     ]);
-    mockedGetLatestReleaseTag
+    releaseProvider.getLatestRelease
       .mockRejectedValueOnce(new RateLimitError())
-      .mockResolvedValueOnce('v3.0.0');
+      .mockResolvedValueOnce({
+        tag: 'v3.0.0',
+        url: 'https://github.com/owner/second/releases/tag/v3.0.0',
+      });
 
-    await checkReleases();
+    await service.checkReleases();
 
-    expect(mockedGetLatestReleaseTag).toHaveBeenCalledTimes(1);
-    expect(mockedSendReleaseEmail).not.toHaveBeenCalled();
-    expect(mockedUpdateLastSeenTag).not.toHaveBeenCalled();
+    expect(releaseProvider.getLatestRelease).toHaveBeenCalledTimes(1);
+    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 });

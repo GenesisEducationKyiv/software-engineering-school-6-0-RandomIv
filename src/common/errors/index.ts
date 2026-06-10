@@ -1,4 +1,4 @@
-import { HttpStatus } from '../constants/http-status.constants';
+import { HttpStatus } from '../constants/http-status.constant';
 import { AppError } from './app-error';
 
 export { AppError };
