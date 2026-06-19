@@ -18,6 +18,9 @@ import type {
   SubscribeRequest,
   UnsubscribeRequest,
 } from '../../../core/grpc/grpc.types';
+import { status } from '@grpc/grpc-js';
+import { logger } from '../../../core/logger';
+import { getGrpcMetrics } from '../../../core/metrics/prometheus';
 
 const API_KEY_METADATA_KEY = 'x-api-key';
 
@@ -27,12 +30,43 @@ const withUnaryHandler = <TRequest, TResponse>(
   ) => Promise<TResponse>,
 ): grpc.handleUnaryCall<TRequest, TResponse> => {
   return (call, callback) => {
+    const { requestCounter, requestDurationHistogram } = getGrpcMetrics();
+    const stopTimer = requestDurationHistogram.startTimer();
+    const method = (call as any).path || 'unknown';
+
     handler(call)
       .then((result) => {
+        const labels = {
+          method,
+          status_code: String(status.OK),
+        };
+        requestCounter.inc(labels);
+        stopTimer(labels);
+
         callback(null, result);
       })
       .catch((error: unknown) => {
-        callback(toGrpcServiceError(error));
+        const grpcError = toGrpcServiceError(error);
+        const statusCode = grpcError.code ?? status.INTERNAL;
+        const labels = {
+          method,
+          status_code: String(statusCode),
+        };
+        requestCounter.inc(labels);
+        stopTimer(labels);
+
+        logger.error(
+          {
+            err: error,
+            grpcCode: statusCode,
+            grpcDetails: grpcError.details,
+            path: (call as any).path,
+            request: call.request,
+          },
+          'gRPC handler failure',
+        );
+
+        callback(grpcError);
       });
   };
 };

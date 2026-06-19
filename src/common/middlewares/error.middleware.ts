@@ -47,7 +47,7 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): Response | void => {
-  logger.error(`[Error] ${getErrorName(err)}: ${getErrorMessage(err)}`);
+  logger.error({ err }, 'HTTP request handler error');
 
   if (err instanceof ZodError) {
     return res.status(HttpStatus.BAD_REQUEST).json({
