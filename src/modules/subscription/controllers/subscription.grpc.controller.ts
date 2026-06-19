@@ -24,6 +24,20 @@ import { getGrpcMetrics } from '../../../core/metrics/prometheus';
 
 const API_KEY_METADATA_KEY = 'x-api-key';
 
+type CallWithPath = { path?: string };
+
+const getCallPath = (call: unknown): string => {
+  if (
+    call &&
+    typeof call === 'object' &&
+    'path' in call &&
+    typeof (call as CallWithPath).path === 'string'
+  ) {
+    return (call as CallWithPath).path as string;
+  }
+  return 'unknown';
+};
+
 const withUnaryHandler = <TRequest, TResponse>(
   handler: (
     call: grpc.ServerUnaryCall<TRequest, TResponse>,
@@ -32,7 +46,7 @@ const withUnaryHandler = <TRequest, TResponse>(
   return (call, callback) => {
     const { requestCounter, requestDurationHistogram } = getGrpcMetrics();
     const stopTimer = requestDurationHistogram.startTimer();
-    const method = (call as any).path || 'unknown';
+    const method = getCallPath(call);
 
     handler(call)
       .then((result) => {
@@ -57,10 +71,14 @@ const withUnaryHandler = <TRequest, TResponse>(
 
         logger.error(
           {
-            err: error,
+            err: {
+              message: grpcError.message,
+              stack: grpcError.stack,
+              name: grpcError.name,
+            },
             grpcCode: statusCode,
             grpcDetails: grpcError.details,
-            path: (call as any).path,
+            path: method,
             request: call.request,
           },
           'gRPC handler failure',
@@ -140,6 +158,7 @@ export class SubscriptionGrpcController {
     };
   });
 }
+
 export const createSubscriptionGrpcHandlers = (
   controller: SubscriptionGrpcController,
 ): ReleaseNotifierHandlers => ({
