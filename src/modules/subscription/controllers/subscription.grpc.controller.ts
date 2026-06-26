@@ -66,7 +66,9 @@ const withUnaryHandler = <TRequest, TResponse>(
 
         const safeRequest: Record<string, string> = {};
         if (call.request && typeof call.request === 'object') {
-          for (const [k, v] of Object.entries(call.request as Record<string, unknown>)) {
+          for (const [k, v] of Object.entries(
+            call.request as Record<string, unknown>,
+          )) {
             if (typeof v === 'string') safeRequest[k] = v;
           }
         }
