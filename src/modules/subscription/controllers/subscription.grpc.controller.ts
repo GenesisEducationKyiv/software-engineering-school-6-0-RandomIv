@@ -25,7 +25,7 @@ import { getGrpcMetrics } from '../../../core/metrics/prometheus';
 const API_KEY_METADATA_KEY = 'x-api-key';
 
 const getCallPath = (call: grpc.ServerUnaryCall<unknown, unknown>): string => {
-  return (call as { path?: string }).path ?? 'unknown';
+  return call.getPath();
 };
 
 const withUnaryHandler = <TRequest, TResponse>(
@@ -64,11 +64,10 @@ const withUnaryHandler = <TRequest, TResponse>(
         requestCounter.inc(labels);
         stopTimer(labels);
 
-        const safeRequest: Record<string, unknown> = {};
+        const safeRequest: Record<string, string> = {};
         if (call.request && typeof call.request === 'object') {
-          const requestObj = call.request as Record<string, unknown>;
-          if (typeof requestObj.repo === 'string') {
-            safeRequest.repo = requestObj.repo;
+          for (const [k, v] of Object.entries(call.request as Record<string, unknown>)) {
+            if (typeof v === 'string') safeRequest[k] = v;
           }
         }
 
