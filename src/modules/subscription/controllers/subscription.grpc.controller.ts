@@ -24,18 +24,8 @@ import { getGrpcMetrics } from '../../../core/metrics/prometheus';
 
 const API_KEY_METADATA_KEY = 'x-api-key';
 
-type CallWithPath = { path?: string };
-
-const getCallPath = (call: unknown): string => {
-  if (
-    call &&
-    typeof call === 'object' &&
-    'path' in call &&
-    typeof (call as CallWithPath).path === 'string'
-  ) {
-    return (call as CallWithPath).path as string;
-  }
-  return 'unknown';
+const getCallPath = (call: grpc.ServerUnaryCall<unknown, unknown>): string => {
+  return (call as { path?: string }).path ?? 'unknown';
 };
 
 const withUnaryHandler = <TRequest, TResponse>(
@@ -43,15 +33,19 @@ const withUnaryHandler = <TRequest, TResponse>(
     call: grpc.ServerUnaryCall<TRequest, TResponse>,
   ) => Promise<TResponse>,
 ): grpc.handleUnaryCall<TRequest, TResponse> => {
+  const { requestCounter, requestDurationHistogram } = getGrpcMetrics();
   return (call, callback) => {
-    const { requestCounter, requestDurationHistogram } = getGrpcMetrics();
     const stopTimer = requestDurationHistogram.startTimer();
     const method = getCallPath(call);
+
+    const parts = method.split('/');
+    const service = parts[1] ?? 'unknown';
 
     handler(call)
       .then((result) => {
         const labels = {
           method,
+          service,
           status_code: String(status.OK),
         };
         requestCounter.inc(labels);
@@ -64,10 +58,19 @@ const withUnaryHandler = <TRequest, TResponse>(
         const statusCode = grpcError.code ?? status.INTERNAL;
         const labels = {
           method,
+          service,
           status_code: String(statusCode),
         };
         requestCounter.inc(labels);
         stopTimer(labels);
+
+        const safeRequest: Record<string, unknown> = {};
+        if (call.request && typeof call.request === 'object') {
+          const requestObj = call.request as Record<string, unknown>;
+          if (typeof requestObj.repo === 'string') {
+            safeRequest.repo = requestObj.repo;
+          }
+        }
 
         logger.error(
           {
@@ -79,7 +82,7 @@ const withUnaryHandler = <TRequest, TResponse>(
             grpcCode: statusCode,
             grpcDetails: grpcError.details,
             path: method,
-            request: call.request,
+            request: safeRequest,
           },
           'gRPC handler failure',
         );

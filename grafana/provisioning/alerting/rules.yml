@@ -1,0 +1,34 @@
+apiVersion: 1
+groups:
+  - name: slo-alerts
+    folder: SLO
+    interval: 1m
+    rules:
+      - title: High HTTP Error Rate
+        condition: C
+        data:
+          - refId: A
+            queryType: ''
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: Prometheus
+            model:
+              expr: >
+                (sum(rate(http_requests_total{status_code!~"2..|3.."}[5m]))
+                / sum(rate(http_requests_total[5m]))) * 100
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: '-100'
+            model:
+              conditions:
+                - evaluator: { params: [5], type: gt }
+                  operator: { type: and }
+                  query: { params: [A] }
+                  reducer: { type: last }
+                  type: query
+        noDataState: NoData
+        execErrState: Error
+        for: 5m
+        annotations:
+          summary: HTTP error rate exceeds 5% for more than 5 minutes

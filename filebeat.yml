@@ -12,7 +12,7 @@ processors:
             container.name: "github_notifier_app"
   - decode_json_fields:
       fields: ["message"]
-      target: "app"
+      target: "app_log"
       overwrite_keys: true
       add_error_key: true
 

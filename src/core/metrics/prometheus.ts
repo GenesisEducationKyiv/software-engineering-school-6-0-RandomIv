@@ -7,7 +7,7 @@ import {
 } from 'prom-client';
 
 type HttpMetricLabels = 'method' | 'status_code' | 'route';
-type GrpcMetricLabels = 'method' | 'status_code';
+type GrpcMetricLabels = 'method' | 'status_code' | 'service';
 
 const register = new Registry();
 const METRICS_ROUTE = '/metrics';
@@ -44,14 +44,14 @@ const initializeMetrics = (): void => {
   grpcRequestsTotal = new Counter<GrpcMetricLabels>({
     name: 'grpc_requests_total',
     help: 'Total number of gRPC requests',
-    labelNames: ['method', 'status_code'],
+    labelNames: ['method', 'status_code', 'service'],
     registers: [register],
   });
 
   grpcRequestDurationSeconds = new Histogram<GrpcMetricLabels>({
     name: 'grpc_request_duration_seconds',
     help: 'Duration of gRPC requests in seconds',
-    labelNames: ['method', 'status_code'],
+    labelNames: ['method', 'status_code', 'service'],
     buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
     registers: [register],
   });
