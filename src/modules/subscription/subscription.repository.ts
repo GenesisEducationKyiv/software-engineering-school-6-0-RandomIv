@@ -36,11 +36,12 @@ export class PrismaSubscriptionRepository implements SubscriptionRepositoryInter
     });
   }
 
-  async updateConfirmation(subscriptionId: string): Promise<void> {
-    await this.prismaClient.subscription.update({
-      where: { id: subscriptionId },
+  async confirmByToken(token: string): Promise<number> {
+    const result = await this.prismaClient.subscription.updateMany({
+      where: { confirmationToken: token, confirmed: false },
       data: { confirmed: true },
     });
+    return result.count;
   }
 
   async deleteByUnsubscribeToken(token: string): Promise<number> {

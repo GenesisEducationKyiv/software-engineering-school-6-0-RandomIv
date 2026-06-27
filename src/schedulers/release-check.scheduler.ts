@@ -14,7 +14,9 @@ export class ReleaseCheckScheduler {
   start(): ScheduledTask {
     const task = cron.schedule(this.schedule, async () => {
       if (this.isRunning) {
-        logger.warn('[Scheduler] Previous release check still running, skipping');
+        logger.warn(
+          '[Scheduler] Previous release check still running, skipping',
+        );
         return;
       }
       this.isRunning = true;

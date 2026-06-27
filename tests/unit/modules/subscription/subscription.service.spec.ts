@@ -44,7 +44,7 @@ describe('subscription.service', () => {
     subscriptionRepository = {
       createSubscription: jest.fn(),
       findByConfirmationToken: jest.fn(),
-      updateConfirmation: jest.fn(),
+      confirmByToken: jest.fn(),
       deleteByUnsubscribeToken: jest.fn(),
       findByEmail: jest.fn(),
     } as unknown as jest.Mocked<SubscriptionRepositoryInterface>;
@@ -167,22 +167,20 @@ describe('subscription.service', () => {
 
   describe('confirmSubscription', () => {
     it('should successfully confirm subscription', async () => {
-      subscriptionRepository.findByConfirmationToken.mockResolvedValue(
-        subscriptionRecord,
-      );
-      subscriptionRepository.updateConfirmation.mockResolvedValue();
+      subscriptionRepository.confirmByToken.mockResolvedValue(1);
 
       await service.confirmSubscription({ token: 'confirm-token' });
 
+      expect(subscriptionRepository.confirmByToken).toHaveBeenCalledWith(
+        'confirm-token',
+      );
       expect(
         subscriptionRepository.findByConfirmationToken,
-      ).toHaveBeenCalledWith('confirm-token');
-      expect(subscriptionRepository.updateConfirmation).toHaveBeenCalledWith(
-        subscriptionRecord.id,
-      );
+      ).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundError if token is invalid', async () => {
+      subscriptionRepository.confirmByToken.mockResolvedValue(0);
       subscriptionRepository.findByConfirmationToken.mockResolvedValue(null);
 
       await expect(
@@ -191,6 +189,7 @@ describe('subscription.service', () => {
     });
 
     it('should throw BadRequestError if token was already used', async () => {
+      subscriptionRepository.confirmByToken.mockResolvedValue(0);
       subscriptionRepository.findByConfirmationToken.mockResolvedValue({
         ...subscriptionRecord,
         confirmed: true,

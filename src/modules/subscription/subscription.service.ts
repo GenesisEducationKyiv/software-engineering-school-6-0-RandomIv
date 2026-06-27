@@ -40,18 +40,15 @@ export class SubscriptionService {
   }
 
   async confirmSubscription({ token }: TokenParamDto): Promise<void> {
-    const subscription =
-      await this.subscriptionRepository.findByConfirmationToken(token);
+    const count = await this.subscriptionRepository.confirmByToken(token);
+    if (count > 0) return;
 
-    if (!subscription) {
+    const existing =
+      await this.subscriptionRepository.findByConfirmationToken(token);
+    if (!existing) {
       throw new NotFoundError('Token not found');
     }
-
-    if (subscription.confirmed) {
-      throw new BadRequestError('Token already used');
-    }
-
-    await this.subscriptionRepository.updateConfirmation(subscription.id);
+    throw new BadRequestError('Token already used');
   }
 
   async unsubscribeByToken({ token }: TokenParamDto): Promise<void> {

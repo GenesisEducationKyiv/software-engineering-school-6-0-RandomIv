@@ -75,12 +75,16 @@ describe('subscription routes integration', () => {
   });
 
   it('POST /api/subscribe creates subscription and sends confirmation email', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({}), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({}), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      );
 
     const response = await request(app)
       .post('/api/subscribe')
@@ -139,12 +143,16 @@ describe('subscription routes integration', () => {
   });
 
   it('POST /api/subscribe maps ConflictError to 409', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({}), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
-    );
+    const fetchSpy = jest
+      .spyOn(globalThis, 'fetch')
+      .mockImplementation(() =>
+        Promise.resolve(
+          new Response(JSON.stringify({}), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+        ),
+      );
 
     const repository = await prisma.repository.create({
       data: { fullName: 'owner/repo' },
