@@ -42,6 +42,7 @@ const controller = new NotificationRestController(channel);
 
 const app = express();
 app.use(express.json());
+app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use(createNotificationRouter(controller));
 
 app.listen(config.NOTIFICATION_PORT, () => {
