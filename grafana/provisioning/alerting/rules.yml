@@ -10,10 +10,10 @@ groups:
           - refId: A
             queryType: ''
             relativeTimeRange: { from: 300, to: 0 }
-            datasourceUid: Prometheus
+            datasourceUid: prometheus
             model:
               expr: >
-                (sum(rate(http_requests_total{status_code!~"2..|3.."}[5m]))
+                (sum(rate(http_requests_total{status_code=~"5.."}[5m]))
                 / sum(rate(http_requests_total[5m]))) * 100
               intervalMs: 1000
               maxDataPoints: 43200
