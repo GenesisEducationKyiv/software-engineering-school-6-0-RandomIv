@@ -8,7 +8,7 @@ import {
 import { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepositoryInterface } from '../../../../src/modules/subscription/interfaces/subscription-repository.interface';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
-import type { EmailService } from '../../../../src/integrations/email/email.service';
+import type { NotificationPort } from '../../../../src/common/interfaces/notification-port.interface';
 import { Prisma } from '../../../../src/generated/prisma/client';
 import type { RepositoryProvider } from '../../../../src/modules/subscription/interfaces/repository-provider.interface';
 import { SubscriptionNotificationError } from '../../../../src/modules/subscription/subscription.error';
@@ -36,7 +36,7 @@ describe('subscription.service', () => {
   let subscriptionRepository: jest.Mocked<SubscriptionRepositoryInterface>;
   let repositoryProvider: jest.Mocked<RepositoryProvider>;
   let repositoryRepository: jest.Mocked<RepositoryRepository>;
-  let emailService: jest.Mocked<EmailService>;
+  let notificationPort: jest.Mocked<NotificationPort>;
   let service: SubscriptionService;
   const appBaseUrl = 'https://app.example.com';
 
@@ -59,16 +59,16 @@ describe('subscription.service', () => {
       updateLastSeenTag: jest.fn(),
     } as unknown as jest.Mocked<RepositoryRepository>;
 
-    emailService = {
-      sendSubscriptionConfirmationEmail: jest.fn(),
-      sendReleaseNotificationEmail: jest.fn(),
-    } as unknown as jest.Mocked<EmailService>;
+    notificationPort = {
+      sendConfirmation: jest.fn(),
+      sendRelease: jest.fn(),
+    };
 
     service = new SubscriptionService(
       subscriptionRepository,
       repositoryProvider,
       repositoryRepository,
-      emailService,
+      notificationPort,
       appBaseUrl,
     );
   });
@@ -82,7 +82,7 @@ describe('subscription.service', () => {
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
-      emailService.sendSubscriptionConfirmationEmail.mockResolvedValue();
+      notificationPort.sendConfirmation.mockResolvedValue();
 
       const result = await service.subscribe({
         email: 'test@example.com',
@@ -93,9 +93,7 @@ describe('subscription.service', () => {
       expect(repositoryProvider.checkRepoExists).toHaveBeenCalledWith(
         'owner/repo',
       );
-      expect(
-        emailService.sendSubscriptionConfirmationEmail,
-      ).toHaveBeenCalledWith(
+      expect(notificationPort.sendConfirmation).toHaveBeenCalledWith(
         'test@example.com',
         'owner/repo',
         AppUrls.confirm(appBaseUrl, subscriptionRecord.confirmationToken),
@@ -119,8 +117,8 @@ describe('subscription.service', () => {
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
-      emailService.sendSubscriptionConfirmationEmail.mockRejectedValue(
-        new Error('SMTP error'),
+      notificationPort.sendConfirmation.mockRejectedValue(
+        new Error('Notification error'),
       );
       subscriptionRepository.deleteByUnsubscribeToken.mockResolvedValue(1);
 
