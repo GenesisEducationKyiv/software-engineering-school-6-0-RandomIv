@@ -95,8 +95,9 @@ export class ScannerService {
       );
       return true;
     } catch (error) {
+      const maskedEmail = sub.email.replace(/(?<=.).(?=[^@]*@)/, '*');
       logger.error(
-        { email: sub.email, repository: repoFullName, err: error },
+        { email: maskedEmail, repository: repoFullName, err: error },
         '[Scanner] Failed to notify subscriber',
       );
       return false;
