@@ -11,7 +11,12 @@ export class HttpNotificationProvider implements NotificationPort {
     confirmationUrl: string,
     unsubscribeUrl: string,
   ): Promise<void> {
-    await this.post('/send-confirmation', { to, repo, confirmationUrl, unsubscribeUrl });
+    await this.post('/send-confirmation', {
+      to,
+      repo,
+      confirmationUrl,
+      unsubscribeUrl,
+    });
   }
 
   async sendRelease(
@@ -21,7 +26,13 @@ export class HttpNotificationProvider implements NotificationPort {
     releaseUrl: string,
     unsubscribeUrl: string,
   ): Promise<void> {
-    await this.post('/send-release', { to, repo, tag, releaseUrl, unsubscribeUrl });
+    await this.post('/send-release', {
+      to,
+      repo,
+      tag,
+      releaseUrl,
+      unsubscribeUrl,
+    });
   }
 
   private async post(path: string, body: unknown): Promise<void> {

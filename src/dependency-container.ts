@@ -33,7 +33,9 @@ export interface DependencyContainer {
 export const createDependencyContainer = (): DependencyContainer => {
   const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 
-  const notificationPort = new HttpNotificationProvider(config.NOTIFICATION_URL);
+  const notificationPort = new HttpNotificationProvider(
+    config.NOTIFICATION_URL,
+  );
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);

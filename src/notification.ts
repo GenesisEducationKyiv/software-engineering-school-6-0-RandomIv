@@ -16,7 +16,9 @@ const configSchema = emailSchema.extend(notificationServiceSchema.shape);
 
 const parsed = configSchema.safeParse(process.env);
 if (!parsed.success) {
-  logger.error('Invalid or missing environment variables for notification service');
+  logger.error(
+    'Invalid or missing environment variables for notification service',
+  );
   process.exit(1);
 }
 const config = parsed.data;
@@ -46,5 +48,7 @@ app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 app.use(createNotificationRouter(controller));
 
 app.listen(config.NOTIFICATION_PORT, () => {
-  logger.info(`Notification service running on port ${config.NOTIFICATION_PORT}`);
+  logger.info(
+    `Notification service running on port ${config.NOTIFICATION_PORT}`,
+  );
 });

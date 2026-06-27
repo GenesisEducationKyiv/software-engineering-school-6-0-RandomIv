@@ -25,6 +25,12 @@ export class EmailNotificationProvider implements NotificationChannel {
     releaseUrl: string,
     unsubscribeUrl: string,
   ): Promise<void> {
-    await this.emailService.sendReleaseEmail(to, repo, tag, releaseUrl, unsubscribeUrl);
+    await this.emailService.sendReleaseEmail(
+      to,
+      repo,
+      tag,
+      releaseUrl,
+      unsubscribeUrl,
+    );
   }
 }
