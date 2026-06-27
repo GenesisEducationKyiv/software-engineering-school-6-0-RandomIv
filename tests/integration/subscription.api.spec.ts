@@ -107,22 +107,34 @@ describe('subscription routes integration', () => {
 
     expect(subscription.repository.fullName).toBe('owner/repo');
 
-    const calls = fetchSpy.mock.calls.map((c) =>
-      c[0] instanceof URL ? c[0].toString() : String(c[0]),
-    );
-    expect(calls.some((url) => url.includes('api.github.com/repos/owner/repo'))).toBe(true);
+    const toUrl = (input: Parameters<typeof fetch>[0]): string => {
+      if (input instanceof URL) return input.href;
+      if (typeof input === 'string') return input;
+      return input.url;
+    };
+
+    const calls = fetchSpy.mock.calls.map((c) => toUrl(c[0]));
+    expect(
+      calls.some((url) => url.includes('api.github.com/repos/owner/repo')),
+    ).toBe(true);
     expect(calls.some((url) => url.includes('/send-confirmation'))).toBe(true);
 
     const notificationCall = fetchSpy.mock.calls.find((c) =>
-      String(c[0] instanceof URL ? c[0].toString() : c[0]).includes('/send-confirmation'),
+      toUrl(c[0]).includes('/send-confirmation'),
     );
     expect(notificationCall).toBeDefined();
     const body = JSON.parse(notificationCall![1]!.body as string);
     expect(body).toEqual({
       to: 'user@example.com',
       repo: 'owner/repo',
-      confirmationUrl: AppUrls.confirm(appBaseUrl, subscription.confirmationToken),
-      unsubscribeUrl: AppUrls.unsubscribe(appBaseUrl, subscription.unsubscribeToken),
+      confirmationUrl: AppUrls.confirm(
+        appBaseUrl,
+        subscription.confirmationToken,
+      ),
+      unsubscribeUrl: AppUrls.unsubscribe(
+        appBaseUrl,
+        subscription.unsubscribeToken,
+      ),
     });
   });
 
