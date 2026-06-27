@@ -4,7 +4,8 @@ groups:
     folder: SLO
     interval: 1m
     rules:
-      - title: High HTTP Error Rate
+      - uid: high-http-error-rate
+        title: High HTTP Error Rate
         condition: C
         data:
           - refId: A
