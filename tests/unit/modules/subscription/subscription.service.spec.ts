@@ -8,7 +8,7 @@ import {
 import { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepositoryInterface } from '../../../../src/modules/subscription/interfaces/subscription-repository.interface';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
-import type { EmailService } from '../../../../src/integrations/email/email.service';
+import type { NotificationPort } from '../../../../src/common/interfaces/notification-port.interface';
 import { Prisma } from '../../../../src/generated/prisma/client';
 import type { RepositoryProvider } from '../../../../src/modules/subscription/interfaces/repository-provider.interface';
 import { SubscriptionNotificationError } from '../../../../src/modules/subscription/subscription.error';
@@ -36,7 +36,7 @@ describe('subscription.service', () => {
   let subscriptionRepository: jest.Mocked<SubscriptionRepositoryInterface>;
   let repositoryProvider: jest.Mocked<RepositoryProvider>;
   let repositoryRepository: jest.Mocked<RepositoryRepository>;
-  let emailService: jest.Mocked<EmailService>;
+  let notificationPort: jest.Mocked<NotificationPort>;
   let service: SubscriptionService;
   const appBaseUrl = 'https://app.example.com';
 
@@ -44,7 +44,7 @@ describe('subscription.service', () => {
     subscriptionRepository = {
       createSubscription: jest.fn(),
       findByConfirmationToken: jest.fn(),
-      updateConfirmation: jest.fn(),
+      confirmByToken: jest.fn(),
       deleteByUnsubscribeToken: jest.fn(),
       findByEmail: jest.fn(),
     } as unknown as jest.Mocked<SubscriptionRepositoryInterface>;
@@ -59,16 +59,16 @@ describe('subscription.service', () => {
       updateLastSeenTag: jest.fn(),
     } as unknown as jest.Mocked<RepositoryRepository>;
 
-    emailService = {
-      sendSubscriptionConfirmationEmail: jest.fn(),
-      sendReleaseNotificationEmail: jest.fn(),
-    } as unknown as jest.Mocked<EmailService>;
+    notificationPort = {
+      sendConfirmation: jest.fn(),
+      sendRelease: jest.fn(),
+    };
 
     service = new SubscriptionService(
       subscriptionRepository,
       repositoryProvider,
       repositoryRepository,
-      emailService,
+      notificationPort,
       appBaseUrl,
     );
   });
@@ -82,7 +82,7 @@ describe('subscription.service', () => {
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
-      emailService.sendSubscriptionConfirmationEmail.mockResolvedValue();
+      notificationPort.sendConfirmation.mockResolvedValue();
 
       const result = await service.subscribe({
         email: 'test@example.com',
@@ -93,9 +93,7 @@ describe('subscription.service', () => {
       expect(repositoryProvider.checkRepoExists).toHaveBeenCalledWith(
         'owner/repo',
       );
-      expect(
-        emailService.sendSubscriptionConfirmationEmail,
-      ).toHaveBeenCalledWith(
+      expect(notificationPort.sendConfirmation).toHaveBeenCalledWith(
         'test@example.com',
         'owner/repo',
         AppUrls.confirm(appBaseUrl, subscriptionRecord.confirmationToken),
@@ -119,8 +117,8 @@ describe('subscription.service', () => {
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
-      emailService.sendSubscriptionConfirmationEmail.mockRejectedValue(
-        new Error('SMTP error'),
+      notificationPort.sendConfirmation.mockRejectedValue(
+        new Error('Notification error'),
       );
       subscriptionRepository.deleteByUnsubscribeToken.mockResolvedValue(1);
 
@@ -169,22 +167,20 @@ describe('subscription.service', () => {
 
   describe('confirmSubscription', () => {
     it('should successfully confirm subscription', async () => {
-      subscriptionRepository.findByConfirmationToken.mockResolvedValue(
-        subscriptionRecord,
-      );
-      subscriptionRepository.updateConfirmation.mockResolvedValue();
+      subscriptionRepository.confirmByToken.mockResolvedValue(1);
 
       await service.confirmSubscription({ token: 'confirm-token' });
 
+      expect(subscriptionRepository.confirmByToken).toHaveBeenCalledWith(
+        'confirm-token',
+      );
       expect(
         subscriptionRepository.findByConfirmationToken,
-      ).toHaveBeenCalledWith('confirm-token');
-      expect(subscriptionRepository.updateConfirmation).toHaveBeenCalledWith(
-        subscriptionRecord.id,
-      );
+      ).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundError if token is invalid', async () => {
+      subscriptionRepository.confirmByToken.mockResolvedValue(0);
       subscriptionRepository.findByConfirmationToken.mockResolvedValue(null);
 
       await expect(
@@ -193,6 +189,7 @@ describe('subscription.service', () => {
     });
 
     it('should throw BadRequestError if token was already used', async () => {
+      subscriptionRepository.confirmByToken.mockResolvedValue(0);
       subscriptionRepository.findByConfirmationToken.mockResolvedValue({
         ...subscriptionRecord,
         confirmed: true,

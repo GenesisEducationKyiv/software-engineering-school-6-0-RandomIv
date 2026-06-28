@@ -10,7 +10,7 @@ export interface SubscriptionRepositoryInterface {
 
   findByConfirmationToken(token: string): Promise<SubscriptionEntity | null>;
 
-  updateConfirmation(subscriptionId: string): Promise<void>;
+  confirmByToken(token: string): Promise<number>;
 
   deleteByUnsubscribeToken(token: string): Promise<number>;
 

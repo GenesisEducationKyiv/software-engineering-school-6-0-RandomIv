@@ -22,7 +22,7 @@ npm ci
 # 2. Generate Prisma Client (Required for types resolution)
 npm run db:generate
 
-# 3. Run ESLint and Prettier checks
+# 3. Run ESLint checks
 npm run lint
 
 # 4. Fix automatic formatting/linting issues (if any)

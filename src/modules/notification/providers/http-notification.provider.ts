@@ -1,0 +1,44 @@
+import type { NotificationPort } from '../../../common/interfaces/notification-port.interface';
+import { httpClient } from '../../../common/utils/http-client.util';
+
+export class HttpNotificationProvider implements NotificationPort {
+  constructor(private readonly notificationUrl: string) {}
+
+  async sendConfirmation(
+    to: string,
+    repo: string,
+    confirmationUrl: string,
+    unsubscribeUrl: string,
+  ): Promise<void> {
+    await this.post('/send-confirmation', {
+      to,
+      repo,
+      confirmationUrl,
+      unsubscribeUrl,
+    });
+  }
+
+  async sendRelease(
+    to: string,
+    repo: string,
+    tag: string,
+    releaseUrl: string,
+    unsubscribeUrl: string,
+  ): Promise<void> {
+    await this.post('/send-release', {
+      to,
+      repo,
+      tag,
+      releaseUrl,
+      unsubscribeUrl,
+    });
+  }
+
+  private async post(path: string, body: unknown): Promise<void> {
+    await httpClient<void>(`${this.notificationUrl}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+  }
+}

@@ -2,7 +2,6 @@ import request from 'supertest';
 import { createApp } from '../../src/app';
 import { createDependencyContainer } from '../../src/dependency-container';
 import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
-import { NodemailerService } from '../../src/integrations/email/email.service';
 import { AppUrls } from '../../src/common/utils/url-builder.util';
 import { config } from '../../src/config';
 import prisma from '../../src/core/db/db';
@@ -76,15 +75,13 @@ describe('subscription routes integration', () => {
   });
 
   it('POST /api/subscribe creates subscription and sends confirmation email', async () => {
-    const emailSpy = jest
-      .spyOn(NodemailerService.prototype, 'sendSubscriptionConfirmationEmail')
-      .mockResolvedValue();
-
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({}), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
 
     const response = await request(app)
@@ -111,24 +108,46 @@ describe('subscription routes integration', () => {
     }
 
     expect(subscription.repository.fullName).toBe('owner/repo');
-    expect(emailSpy).toHaveBeenCalledWith(
-      'user@example.com',
-      'owner/repo',
-      AppUrls.confirm(appBaseUrl, subscription.confirmationToken),
-      AppUrls.unsubscribe(appBaseUrl, subscription.unsubscribeToken),
-    );
-    const calledUrl = fetchSpy.mock.calls[0]?.[0];
+
+    const toUrl = (input: Parameters<typeof fetch>[0]): string => {
+      if (input instanceof URL) return input.href;
+      if (typeof input === 'string') return input;
+      return input.url;
+    };
+
+    const calls = fetchSpy.mock.calls.map((c) => toUrl(c[0]));
     expect(
-      calledUrl instanceof URL ? calledUrl.toString() : calledUrl,
-    ).toContain('api.github.com/repos/owner/repo');
+      calls.some((url) => url.includes('api.github.com/repos/owner/repo')),
+    ).toBe(true);
+    expect(calls.some((url) => url.includes('/send-confirmation'))).toBe(true);
+
+    const notificationCall = fetchSpy.mock.calls.find((c) =>
+      toUrl(c[0]).includes('/send-confirmation'),
+    );
+    expect(notificationCall).toBeDefined();
+    const body = JSON.parse(notificationCall![1]!.body as string);
+    expect(body).toEqual({
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: AppUrls.confirm(
+        appBaseUrl,
+        subscription.confirmationToken,
+      ),
+      unsubscribeUrl: AppUrls.unsubscribe(
+        appBaseUrl,
+        subscription.unsubscribeToken,
+      ),
+    });
   });
 
   it('POST /api/subscribe maps ConflictError to 409', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(JSON.stringify({}), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
     );
 
     const repository = await prisma.repository.create({
