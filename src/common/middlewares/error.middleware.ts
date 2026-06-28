@@ -9,14 +9,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
 };
 
-const getErrorName = (error: unknown): string => {
-  return error instanceof Error ? error.name : 'UnknownError';
-};
-
-const getErrorMessage = (error: unknown): string => {
-  return error instanceof Error ? error.message : 'Unknown error';
-};
-
 const getStatusCode = (error: unknown): number => {
   if (isRecord(error) && typeof error.status === 'number') {
     return error.status;
@@ -47,7 +39,7 @@ export const errorHandler = (
   res: Response,
   _next: NextFunction,
 ): Response | void => {
-  logger.error(`[Error] ${getErrorName(err)}: ${getErrorMessage(err)}`);
+  logger.error({ err }, 'HTTP request handler error');
 
   if (err instanceof ZodError) {
     return res.status(HttpStatus.BAD_REQUEST).json({
