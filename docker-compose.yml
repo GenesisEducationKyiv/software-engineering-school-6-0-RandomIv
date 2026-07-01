@@ -11,13 +11,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      notification:
-        condition: service_started
+      rabbitmq:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/github_notifier
       REDIS_URL: redis://redis:6379
-      NOTIFICATION_URL: http://notification:3001
+      RABBITMQ_URL: amqp://rabbitmq:5672
     ports:
       - "3000:3000"
       - "50051:50051"
@@ -29,11 +29,30 @@ services:
       dockerfile: Dockerfile.notification
     container_name: github_notifier_notification
     restart: unless-stopped
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       NOTIFICATION_PORT: 3001
+      RABBITMQ_URL: amqp://rabbitmq:5672
     ports:
       - "3001:3001"
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: github_notifier_rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - rabbitmqdata:/var/lib/rabbitmq
 
   postgres:
     image: postgres:16-alpine
@@ -133,7 +152,7 @@ services:
     container_name: github_notifier_grafana
     restart: unless-stopped
     ports:
-      - "3001:3000"
+      - "3003:3000"
     volumes:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - grafanadata:/var/lib/grafana
@@ -149,6 +168,7 @@ services:
 volumes:
   pgdata:
   redisdata:
+  rabbitmqdata:
   esdata:
   prometheusdata:
   grafanadata:

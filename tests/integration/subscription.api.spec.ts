@@ -1,3 +1,4 @@
+import amqp from 'amqplib';
 import request from 'supertest';
 import { createApp } from '../../src/app';
 import { createDependencyContainer } from '../../src/dependency-container';
@@ -5,18 +6,52 @@ import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware'
 import { AppUrls } from '../../src/common/utils/url-builder.util';
 import { config } from '../../src/config';
 import prisma from '../../src/core/db/db';
+import { NOTIFICATION_QUEUE } from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import type { NotificationMessage } from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
 
 const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 const TEST_API_KEY = config.API_KEY;
 let app: ReturnType<typeof createApp>;
 
+let mqConnection: amqp.ChannelModel;
+let mqChannel: amqp.Channel;
+
+const consumeNextMessage = (): Promise<NotificationMessage> =>
+  new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Timed out waiting for MQ message')),
+      5000,
+    );
+    mqChannel
+      .consume(
+        NOTIFICATION_QUEUE,
+        (msg: amqp.ConsumeMessage | null) => {
+          if (!msg) return;
+          clearTimeout(timeout);
+          mqChannel.ack(msg);
+          resolve(JSON.parse(msg.content.toString()) as NotificationMessage);
+        },
+        { noAck: false },
+      )
+      .catch(reject);
+  });
+
 describe('subscription routes integration', () => {
-  beforeAll(() => {
+  beforeAll(async () => {
     const container = createDependencyContainer();
     app = createApp({
       apiController: container.apiController,
       webController: container.webController,
     });
+
+    mqConnection = await amqp.connect(config.RABBITMQ_URL);
+    mqChannel = await mqConnection.createChannel();
+    await mqChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
+  });
+
+  afterAll(async () => {
+    await mqChannel.deleteQueue(NOTIFICATION_QUEUE);
+    await mqConnection.close();
   });
 
   afterEach(() => {
@@ -74,8 +109,8 @@ describe('subscription routes integration', () => {
     );
   });
 
-  it('POST /api/subscribe creates subscription and sends confirmation email', async () => {
-    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(() =>
+  it('POST /api/subscribe creates subscription and publishes confirmation to MQ', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({}), {
           status: 200,
@@ -83,6 +118,8 @@ describe('subscription routes integration', () => {
         }),
       ),
     );
+
+    const messagePromise = consumeNextMessage();
 
     const response = await request(app)
       .post('/api/subscribe')
@@ -103,30 +140,12 @@ describe('subscription routes integration', () => {
     });
 
     expect(subscription).not.toBeNull();
-    if (!subscription) {
-      throw new Error('Subscription was not created');
-    }
-
+    if (!subscription) throw new Error('Subscription was not created');
     expect(subscription.repository.fullName).toBe('owner/repo');
 
-    const toUrl = (input: Parameters<typeof fetch>[0]): string => {
-      if (input instanceof URL) return input.href;
-      if (typeof input === 'string') return input;
-      return input.url;
-    };
-
-    const calls = fetchSpy.mock.calls.map((c) => toUrl(c[0]));
-    expect(
-      calls.some((url) => url.includes('api.github.com/repos/owner/repo')),
-    ).toBe(true);
-    expect(calls.some((url) => url.includes('/send-confirmation'))).toBe(true);
-
-    const notificationCall = fetchSpy.mock.calls.find((c) =>
-      toUrl(c[0]).includes('/send-confirmation'),
-    );
-    expect(notificationCall).toBeDefined();
-    const body = JSON.parse(notificationCall![1]!.body as string);
-    expect(body).toEqual({
+    const message = await messagePromise;
+    expect(message).toEqual({
+      type: 'confirmation',
       to: 'user@example.com',
       repo: 'owner/repo',
       confirmationUrl: AppUrls.confirm(
@@ -138,7 +157,7 @@ describe('subscription routes integration', () => {
         subscription.unsubscribeToken,
       ),
     });
-  });
+  }, 15_000);
 
   it('POST /api/subscribe maps ConflictError to 409', async () => {
     const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(() =>

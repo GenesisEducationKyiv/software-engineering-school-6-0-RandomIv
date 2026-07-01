@@ -1,4 +1,4 @@
-import type { NotificationChannel } from '../notification-channel.interface';
+import type { NotificationChannel } from './notification-channel.interface';
 import type { EmailService } from '../../../integrations/email/email.service';
 
 export class EmailNotificationProvider implements NotificationChannel {

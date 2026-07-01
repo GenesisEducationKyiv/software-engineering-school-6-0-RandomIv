@@ -1,16 +1,13 @@
 import { Request, Response, Router } from 'express';
-import type { NotificationChannel } from '../notification-channel.interface';
-import {
-  sendConfirmationSchema,
-  sendReleaseSchema,
-} from '../notification.schema';
+import type { NotificationChannel } from '../delivery/notification-channel.interface';
+import { confirmationSchema, releaseSchema } from '../notification.schema';
 
 export class NotificationRestController {
   constructor(private readonly channel: NotificationChannel) {}
 
   sendConfirmation = async (req: Request, res: Response): Promise<void> => {
     const { to, repo, confirmationUrl, unsubscribeUrl } =
-      sendConfirmationSchema.parse(req.body);
+      confirmationSchema.parse(req.body);
     await this.channel.sendConfirmation(
       to,
       repo,
@@ -21,8 +18,9 @@ export class NotificationRestController {
   };
 
   sendRelease = async (req: Request, res: Response): Promise<void> => {
-    const { to, repo, tag, releaseUrl, unsubscribeUrl } =
-      sendReleaseSchema.parse(req.body);
+    const { to, repo, tag, releaseUrl, unsubscribeUrl } = releaseSchema.parse(
+      req.body,
+    );
     await this.channel.sendRelease(to, repo, tag, releaseUrl, unsubscribeUrl);
     res.json({ message: 'Release notification sent' });
   };

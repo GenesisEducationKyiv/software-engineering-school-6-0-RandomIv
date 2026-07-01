@@ -4,7 +4,7 @@ import { PrismaRepositoryRepository } from './modules/repository/repository.repo
 import { ScannerService } from './modules/scanner/scanner.service';
 import { SubscriptionService } from './modules/subscription/subscription.service';
 import { PrismaSubscriptionRepository } from './modules/subscription/subscription.repository';
-import { HttpNotificationProvider } from './modules/notification/providers/http-notification.provider';
+import { MqNotificationProvider } from './modules/notification/rabbitmq/rabbitmq.provider';
 import { ReleaseCheckScheduler } from './schedulers/release-check.scheduler';
 import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
 
@@ -33,9 +33,7 @@ export interface DependencyContainer {
 export const createDependencyContainer = (): DependencyContainer => {
   const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 
-  const notificationPort = new HttpNotificationProvider(
-    config.NOTIFICATION_URL,
-  );
+  const notificationPort = new MqNotificationProvider(config.RABBITMQ_URL);
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
