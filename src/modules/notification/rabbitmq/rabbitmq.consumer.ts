@@ -54,9 +54,7 @@ const setupChannel = async (
   await mqChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
   await mqChannel.prefetch(1);
 
-  // prefetch(1) means the broker won't push the next message until this one
-  // is ack/nack'd, so each delivery is handled independently without
-  // blocking the consume() registration on in-flight message processing
+  // fire-and-forget: prefetch(1) throttles delivery, ack/nack happens inside handleMessage
   await mqChannel.consume(NOTIFICATION_QUEUE, (msg) => {
     void handleMessage(mqChannel, channel, msg);
   });
