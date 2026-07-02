@@ -41,7 +41,6 @@ const handleMessage = async (
     logger.info({ type: message.type }, '[MQ] Message processed');
   } catch (error) {
     logger.error({ err: error }, '[MQ] Failed to process message');
-    // requeue once; drop on redelivery to avoid infinite loop
     mqChannel.nack(msg, false, !msg.fields.redelivered);
   }
 };
@@ -54,7 +53,6 @@ const setupChannel = async (
   await mqChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
   await mqChannel.prefetch(1);
 
-  // fire-and-forget: prefetch(1) throttles delivery, ack/nack happens inside handleMessage
   await mqChannel.consume(NOTIFICATION_QUEUE, (msg) => {
     void handleMessage(mqChannel, channel, msg);
   });
