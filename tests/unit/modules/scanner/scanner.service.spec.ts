@@ -5,7 +5,7 @@ import { ScannerService } from '../../../../src/modules/scanner/scanner.service'
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import type { ReleaseProvider } from '../../../../src/modules/scanner/interfaces/release-provider.interface';
-import type { EmailService } from '../../../../src/integrations/email/email.service';
+import type { NotificationPort } from '../../../../src/common/interfaces/notification-port.interface';
 
 const createSubscription = (id: string, email: string): SubscriptionEntity => ({
   id,
@@ -37,21 +37,21 @@ describe('scanner.service', () => {
   const releaseProvider: jest.Mocked<ReleaseProvider> = {
     getLatestRelease: jest.fn(),
   };
-  const emailService: jest.Mocked<EmailService> = {
-    sendSubscriptionConfirmationEmail: jest.fn(),
-    sendReleaseEmail: jest.fn(),
+  const notificationPort: jest.Mocked<NotificationPort> = {
+    sendConfirmation: jest.fn(),
+    sendRelease: jest.fn(),
   };
   const appBaseUrl = 'https://app.example.com';
 
   const service = new ScannerService(
     releaseProvider,
-    emailService,
+    notificationPort,
     repositoryRepository,
     appBaseUrl,
   );
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   it('does nothing when there are no active repositories', async () => {
@@ -60,7 +60,7 @@ describe('scanner.service', () => {
     await service.checkReleases();
 
     expect(releaseProvider.getLatestRelease).not.toHaveBeenCalled();
-    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(notificationPort.sendRelease).not.toHaveBeenCalled();
     expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
@@ -72,7 +72,7 @@ describe('scanner.service', () => {
 
     await service.checkReleases();
 
-    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(notificationPort.sendRelease).not.toHaveBeenCalled();
     expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
@@ -87,7 +87,7 @@ describe('scanner.service', () => {
 
     await service.checkReleases();
 
-    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(notificationPort.sendRelease).not.toHaveBeenCalled();
     expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
@@ -104,14 +104,12 @@ describe('scanner.service', () => {
       tag: 'v2.0.0',
       url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
     });
-    emailService.sendReleaseEmail.mockResolvedValue({
-      messageId: 'ok',
-    } as never);
+    notificationPort.sendRelease.mockResolvedValue(undefined);
 
     await service.checkReleases();
 
-    expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(2);
-    expect(emailService.sendReleaseEmail).toHaveBeenNthCalledWith(
+    expect(notificationPort.sendRelease).toHaveBeenCalledTimes(2);
+    expect(notificationPort.sendRelease).toHaveBeenNthCalledWith(
       1,
       'a@example.com',
       'owner/repo',
@@ -119,7 +117,7 @@ describe('scanner.service', () => {
       'https://github.com/owner/repo/releases/tag/v2.0.0',
       AppUrls.unsubscribe(appBaseUrl, 'sub-1-unsubscribe-token'),
     );
-    expect(emailService.sendReleaseEmail).toHaveBeenNthCalledWith(
+    expect(notificationPort.sendRelease).toHaveBeenNthCalledWith(
       2,
       'b@example.com',
       'owner/repo',
@@ -146,13 +144,13 @@ describe('scanner.service', () => {
       tag: 'v2.0.0',
       url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
     });
-    emailService.sendReleaseEmail
+    notificationPort.sendRelease
       .mockRejectedValueOnce(new Error('SMTP failed'))
       .mockResolvedValueOnce({ messageId: 'ok' } as never);
 
     await service.checkReleases();
 
-    expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(2);
+    expect(notificationPort.sendRelease).toHaveBeenCalledTimes(2);
     expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 
@@ -167,14 +165,14 @@ describe('scanner.service', () => {
         tag: 'v3.0.0',
         url: 'https://github.com/owner/second/releases/tag/v3.0.0',
       });
-    emailService.sendReleaseEmail.mockResolvedValue({
+    notificationPort.sendRelease.mockResolvedValue({
       messageId: 'ok',
     } as never);
 
     await service.checkReleases();
 
-    expect(emailService.sendReleaseEmail).toHaveBeenCalledTimes(1);
-    expect(emailService.sendReleaseEmail).toHaveBeenCalledWith(
+    expect(notificationPort.sendRelease).toHaveBeenCalledTimes(1);
+    expect(notificationPort.sendRelease).toHaveBeenCalledWith(
       'user@example.com',
       'owner/second',
       'v3.0.0',
@@ -203,7 +201,7 @@ describe('scanner.service', () => {
     await service.checkReleases();
 
     expect(releaseProvider.getLatestRelease).toHaveBeenCalledTimes(1);
-    expect(emailService.sendReleaseEmail).not.toHaveBeenCalled();
+    expect(notificationPort.sendRelease).not.toHaveBeenCalled();
     expect(repositoryRepository.updateLastSeenTag).not.toHaveBeenCalled();
   });
 });

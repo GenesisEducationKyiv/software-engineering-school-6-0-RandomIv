@@ -2,7 +2,7 @@
 module.exports = {
   testEnvironment: 'node',
   roots: ['<rootDir>/tests'],
-  testMatch: ['**/*.spec.ts'],
+  testMatch: ['**/unit/**/*.spec.ts'],
   collectCoverageFrom: ['src/**/*.ts', '!src/generated/**'],
   coveragePathIgnorePatterns: ['/node_modules/', '/tests/'],
   setupFiles: ['<rootDir>/tests/env.setup.ts'],

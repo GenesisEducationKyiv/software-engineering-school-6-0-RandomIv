@@ -1,20 +1,16 @@
-import type { SentMessageInfo, Transporter } from 'nodemailer';
 import { HttpStatus } from '../../../../src/common/constants/http-status.constant';
 import {
   EmailService,
   NodemailerService,
 } from '../../../../src/integrations/email/email.service';
+import type { EmailTransport } from '../../../../src/integrations/email/email-transport.interface';
 
 describe('email.service', () => {
   const sendMailMock = jest.fn();
 
   const createService = (): EmailService => {
-    return new NodemailerService({
-      emailUser: 'test@example.com',
-      transporter: {
-        sendMail: sendMailMock,
-      } as unknown as Transporter,
-    });
+    const transport: EmailTransport = { sendMail: sendMailMock };
+    return new NodemailerService(transport, 'test@example.com');
   };
 
   beforeEach(() => {
@@ -22,9 +18,8 @@ describe('email.service', () => {
   });
 
   it('sends release email', async () => {
-    const info = { messageId: 'message-1' } as SentMessageInfo;
     const service = createService();
-    sendMailMock.mockResolvedValueOnce(info);
+    sendMailMock.mockResolvedValueOnce(undefined);
 
     await service.sendReleaseEmail(
       'user@example.com',
@@ -43,9 +38,8 @@ describe('email.service', () => {
   });
 
   it('sends confirmation email', async () => {
-    const info = { messageId: 'message-2' } as SentMessageInfo;
     const service = createService();
-    sendMailMock.mockResolvedValueOnce(info);
+    sendMailMock.mockResolvedValueOnce(undefined);
 
     await service.sendSubscriptionConfirmationEmail(
       'user@example.com',

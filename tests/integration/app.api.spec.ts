@@ -1,29 +1,17 @@
 import request from 'supertest';
 import { createApp } from '../../src/app';
 import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
-import { SubscriptionRestController } from '../../src/modules/subscription/controllers/subscription.rest.controller';
-import { SubscriptionWebController } from '../../src/modules/subscription/controllers/subscription.web.controller';
-import type { SubscriptionService } from '../../src/modules/subscription/subscription.service';
+import { createDependencyContainer } from '../../src/dependency-container';
 
 describe('app routing integration', () => {
-  const subscriptionService = {
-    subscribe: jest.fn(),
-    confirmSubscription: jest.fn(),
-    unsubscribeByToken: jest.fn(),
-    getSubscriptionsByEmail: jest.fn(),
-  } as unknown as SubscriptionService;
-  const apiController = new SubscriptionRestController(subscriptionService);
-  const webController = new SubscriptionWebController(subscriptionService);
-  const app = createApp({ apiController, webController });
+  let app: ReturnType<typeof createApp>;
 
-  let consoleErrorSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-  });
-
-  afterEach(() => {
-    consoleErrorSpy.mockRestore();
+  beforeAll(() => {
+    const container = createDependencyContainer();
+    app = createApp({
+      apiController: container.apiController,
+      webController: container.webController,
+    });
   });
 
   it('serves subscription page on root path', async () => {
@@ -43,7 +31,9 @@ describe('app routing integration', () => {
   });
 
   it('returns prometheus metrics', async () => {
-    const response = await request(app).get('/metrics');
+    const response = await request(app)
+      .get('/metrics')
+      .set(API_KEY_HEADER, 'test-api-key');
 
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toContain('text/plain');
@@ -56,7 +46,9 @@ describe('app routing integration', () => {
       .get('/api/confirm/not-a-uuid')
       .set(API_KEY_HEADER, 'test-api-key');
 
-    const metricsResponse = await request(app).get('/metrics');
+    const metricsResponse = await request(app)
+      .get('/metrics')
+      .set(API_KEY_HEADER, 'test-api-key');
 
     expect(metricsResponse.status).toBe(200);
     expect(metricsResponse.text).toContain('route="/confirm/:token"');

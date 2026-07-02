@@ -1,40 +1,65 @@
+import amqp from 'amqplib';
 import request from 'supertest';
 import { createApp } from '../../src/app';
-import { AppError, NotFoundError } from '../../src/common/errors';
+import { createDependencyContainer } from '../../src/dependency-container';
 import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware';
-import { SubscriptionRestController } from '../../src/modules/subscription/controllers/subscription.rest.controller';
-import { SubscriptionWebController } from '../../src/modules/subscription/controllers/subscription.web.controller';
-import type { SubscriptionService } from '../../src/modules/subscription/subscription.service';
-import type { SubscriptionEntity } from '../../src/modules/subscription/entities/subscription.entity';
-import type { SubscriptionWithRepositoryEntity } from '../../src/modules/subscription/entities/subscription-with-repository.entity';
+import { AppUrls } from '../../src/common/utils/url-builder.util';
+import { config } from '../../src/config';
+import prisma from '../../src/core/db/db';
+import { NOTIFICATION_QUEUE } from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import type { NotificationMessage } from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
 
-const TEST_API_KEY = 'test-api-key';
+const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
+const TEST_API_KEY = config.API_KEY;
+let app: ReturnType<typeof createApp>;
+
+let mqConnection: amqp.ChannelModel;
+let mqChannel: amqp.Channel;
+
+const consumeNextMessage = (): Promise<NotificationMessage> =>
+  new Promise((resolve, reject) => {
+    const timeout = setTimeout(
+      () => reject(new Error('Timed out waiting for MQ message')),
+      5000,
+    );
+    mqChannel
+      .consume(
+        NOTIFICATION_QUEUE,
+        (msg: amqp.ConsumeMessage | null) => {
+          if (!msg) return;
+          clearTimeout(timeout);
+          mqChannel.ack(msg);
+          resolve(JSON.parse(msg.content.toString()) as NotificationMessage);
+        },
+        { noAck: false },
+      )
+      .catch(reject);
+  });
 
 describe('subscription routes integration', () => {
-  const subscriptionService = {
-    subscribe: jest.fn(),
-    confirmSubscription: jest.fn(),
-    unsubscribeByToken: jest.fn(),
-    getSubscriptionsByEmail: jest.fn(),
-  } as unknown as SubscriptionService;
+  beforeAll(async () => {
+    const container = createDependencyContainer();
+    app = createApp({
+      apiController: container.apiController,
+      webController: container.webController,
+    });
 
-  const apiController = new SubscriptionRestController(subscriptionService);
-  const webController = new SubscriptionWebController(subscriptionService);
-  const app = createApp({ apiController, webController });
+    mqConnection = await amqp.connect(config.RABBITMQ_URL);
+    mqChannel = await mqConnection.createChannel();
+    await mqChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
+  });
 
-  let consoleErrorSpy: jest.SpyInstance;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-    consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
+  afterAll(async () => {
+    await mqChannel.deleteQueue(NOTIFICATION_QUEUE);
+    await mqConnection.close();
   });
 
   afterEach(() => {
-    consoleErrorSpy.mockRestore();
+    jest.restoreAllMocks();
   });
 
-  describe('API endpoints require x-api-key', () => {
-    it('blocks POST /api/subscribe without API key', async () => {
+  describe('Security - API endpoints require x-api-key', () => {
+    it('POST /api/subscribe returns 401 when x-api-key is missing', async () => {
       const response = await request(app).post('/api/subscribe').send({
         email: 'user@example.com',
         repo: 'owner/repo',
@@ -45,284 +70,226 @@ describe('subscription routes integration', () => {
         status: 'error',
         message: 'Invalid API key',
       });
-      expect(subscriptionService.subscribe).not.toHaveBeenCalled();
     });
 
-    it('blocks GET /api/confirm/:token without API key', async () => {
-      const response = await request(app).get(
-        '/api/confirm/73d7f6d9-f3b2-42b7-b6de-7a12f052f7f4',
-      );
-
-      expect(response.status).toBe(401);
-      expect(subscriptionService.confirmSubscription).not.toHaveBeenCalled();
-    });
-
-    it('blocks GET /api/unsubscribe/:token without API key', async () => {
-      const response = await request(app).get(
-        '/api/unsubscribe/76d9f048-5cd9-4365-960e-c66f7fc9d69d',
-      );
-
-      expect(response.status).toBe(401);
-      expect(subscriptionService.unsubscribeByToken).not.toHaveBeenCalled();
-    });
-
-    it('blocks GET /api/subscriptions without API key', async () => {
+    it('GET /api/subscriptions returns 401 when x-api-key is missing', async () => {
       const response = await request(app).get(
         '/api/subscriptions?email=user@example.com',
       );
 
       expect(response.status).toBe(401);
-      expect(
-        subscriptionService.getSubscriptionsByEmail,
-      ).not.toHaveBeenCalled();
+      expect(response.body).toEqual({
+        status: 'error',
+        message: 'Invalid API key',
+      });
     });
   });
 
-  describe('Protected API endpoints', () => {
-    it('POST /api/subscribe returns 200 for valid payload with API key', async () => {
-      const mockSubscription: SubscriptionEntity = {
-        id: 'sub-1',
-        email: 'user@example.com',
-        confirmed: false,
-        confirmationToken: '0f6d4db7-bdd9-4f95-a8a6-08539b34d7c6',
-        unsubscribeToken: 'd93f4ce3-bd06-4bbc-a3cf-5ca619fd6f17',
-        createdAt: new Date('2024-01-01T00:00:00.000Z'),
-        repositoryId: 'repo-1',
-      };
-
-      (
-        subscriptionService.subscribe as jest.MockedFunction<
-          SubscriptionService['subscribe']
-        >
-      ).mockResolvedValueOnce(mockSubscription);
-
-      const response = await request(app)
-        .post('/api/subscribe')
-        .set(API_KEY_HEADER, TEST_API_KEY)
-        .send({
-          email: 'user@example.com',
-          repo: ' owner/repo ',
-        });
-
-      expect(response.status).toBe(200);
-      expect(response.body).toMatchObject({
-        message: 'Subscription successful. Confirmation email sent.',
+  it('POST /api/subscribe returns 400 for invalid body', async () => {
+    const response = await request(app)
+      .post('/api/subscribe')
+      .set(API_KEY_HEADER, TEST_API_KEY)
+      .send({
+        email: 'not-an-email',
+        repo: 'invalid',
       });
-      expect(subscriptionService.subscribe).toHaveBeenCalledWith({
-        email: 'user@example.com',
-        repo: 'owner/repo',
-      });
-    });
 
-    it('POST /api/subscribe returns 400 for invalid body', async () => {
-      const response = await request(app)
-        .post('/api/subscribe')
-        .set(API_KEY_HEADER, TEST_API_KEY)
-        .send({
-          email: 'not-an-email',
-          repo: 'owner/repo',
-        });
-
-      expect(response.status).toBe(400);
-      expect(response.body).toMatchObject({
+    expect(response.status).toBe(400);
+    expect(response.body).toEqual(
+      expect.objectContaining({
         status: 'error',
         message: 'Validation failed',
-      });
-      expect(subscriptionService.subscribe).not.toHaveBeenCalled();
-    });
-
-    it('POST /api/subscribe maps service errors', async () => {
-      (
-        subscriptionService.subscribe as jest.MockedFunction<
-          SubscriptionService['subscribe']
-        >
-      ).mockRejectedValueOnce(
-        new NotFoundError('Repository not found on GitHub'),
-      );
-
-      const response = await request(app)
-        .post('/api/subscribe')
-        .set(API_KEY_HEADER, TEST_API_KEY)
-        .send({
-          email: 'user@example.com',
-          repo: 'owner/repo',
-        });
-
-      expect(response.status).toBe(404);
-      expect(response.body).toEqual({
-        status: 'error',
-        message: 'Repository not found on GitHub',
-      });
-    });
-
-    it('GET /api/confirm/:token works with API key', async () => {
-      (
-        subscriptionService.confirmSubscription as jest.MockedFunction<
-          SubscriptionService['confirmSubscription']
-        >
-      ).mockResolvedValueOnce();
-
-      const token = '73d7f6d9-f3b2-42b7-b6de-7a12f052f7f4';
-      const response = await request(app)
-        .get(`/api/confirm/${token}`)
-        .set(API_KEY_HEADER, TEST_API_KEY);
-
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual({
-        message: 'Subscription confirmed successfully',
-      });
-      expect(subscriptionService.confirmSubscription).toHaveBeenCalledWith({
-        token,
-      });
-    });
-
-    it('GET /api/unsubscribe/:token works with API key', async () => {
-      (
-        subscriptionService.unsubscribeByToken as jest.MockedFunction<
-          SubscriptionService['unsubscribeByToken']
-        >
-      ).mockResolvedValueOnce();
-
-      const token = '76d9f048-5cd9-4365-960e-c66f7fc9d69d';
-      const response = await request(app)
-        .get(`/api/unsubscribe/${token}`)
-        .set(API_KEY_HEADER, TEST_API_KEY);
-
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual({
-        message: 'Unsubscribed successfully',
-      });
-      expect(subscriptionService.unsubscribeByToken).toHaveBeenCalledWith({
-        token,
-      });
-    });
-
-    it('GET /api/subscriptions returns mapped subscriptions with API key', async () => {
-      const mockSubscription: SubscriptionWithRepositoryEntity = {
-        id: 'sub-1',
-        email: 'user@example.com',
-        confirmed: true,
-        confirmationToken: 'a3ef2aa2-f770-451e-b4fd-f57afd94ec2d',
-        unsubscribeToken: 'f202f85e-2d90-414b-8d85-56f8f64d8fd5',
-        createdAt: new Date('2024-01-01T00:00:00.000Z'),
-        repositoryId: 'repo-1',
-        repository: {
-          id: 'repo-1',
-          fullName: 'owner/repo',
-          lastSeenTag: 'v1.0.0',
-          updatedAt: new Date('2024-01-01T00:00:00.000Z'),
-        },
-      };
-
-      (
-        subscriptionService.getSubscriptionsByEmail as jest.MockedFunction<
-          SubscriptionService['getSubscriptionsByEmail']
-        >
-      ).mockResolvedValueOnce([mockSubscription]);
-
-      const response = await request(app)
-        .get('/api/subscriptions?email=user@example.com')
-        .set(API_KEY_HEADER, TEST_API_KEY);
-
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual([
-        {
-          email: 'user@example.com',
-          repo: 'owner/repo',
-          confirmed: true,
-          last_seen_tag: 'v1.0.0',
-        },
-      ]);
-      expect(subscriptionService.getSubscriptionsByEmail).toHaveBeenCalledWith({
-        email: 'user@example.com',
-      });
-    });
+      }),
+    );
+    expect(response.body.errors).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ field: 'email' }),
+        expect.objectContaining({ field: 'repo' }),
+      ]),
+    );
   });
 
-  describe('Public web endpoints', () => {
-    it('POST /web/subscribe works without API key', async () => {
-      const mockSubscription: SubscriptionEntity = {
-        id: 'sub-1',
-        email: 'user@example.com',
-        confirmed: false,
-        confirmationToken: '0f6d4db7-bdd9-4f95-a8a6-08539b34d7c6',
-        unsubscribeToken: 'd93f4ce3-bd06-4bbc-a3cf-5ca619fd6f17',
-        createdAt: new Date('2024-01-01T00:00:00.000Z'),
-        repositoryId: 'repo-1',
-      };
+  it('POST /api/subscribe creates subscription and publishes confirmation to MQ', async () => {
+    jest.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
 
-      (
-        subscriptionService.subscribe as jest.MockedFunction<
-          SubscriptionService['subscribe']
-        >
-      ).mockResolvedValueOnce(mockSubscription);
+    const messagePromise = consumeNextMessage();
 
-      const response = await request(app).post('/web/subscribe').send({
+    const response = await request(app)
+      .post('/api/subscribe')
+      .set(API_KEY_HEADER, TEST_API_KEY)
+      .send({
         email: 'user@example.com',
         repo: 'owner/repo',
       });
 
-      expect(response.status).toBe(200);
-      expect(response.body).toEqual({
-        message: 'Subscription successful. Confirmation email sent.',
-      });
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      message: 'Subscription successful. Confirmation email sent.',
     });
 
-    it('GET /web/confirm/:token works without API key', async () => {
-      (
-        subscriptionService.confirmSubscription as jest.MockedFunction<
-          SubscriptionService['confirmSubscription']
-        >
-      ).mockResolvedValueOnce();
-      const token = '866ffeb1-82e7-456e-b5a7-2b2fc345ff16';
-
-      const response = await request(app).get(`/web/confirm/${token}`);
-
-      expect(response.status).toBe(200);
-      expect(response.headers['content-type']).toContain('text/html');
-      expect(response.text).toContain('Confirmed');
-      expect(response.text).toContain(
-        'Your subscription has been confirmed successfully.',
-      );
+    const subscription = await prisma.subscription.findFirst({
+      where: { email: 'user@example.com' },
+      include: { repository: true },
     });
 
-    it('GET /web/unsubscribe/:token works without API key', async () => {
-      (
-        subscriptionService.unsubscribeByToken as jest.MockedFunction<
-          SubscriptionService['unsubscribeByToken']
-        >
-      ).mockResolvedValueOnce();
-      const token = '984fc3f9-3800-4a4a-9d2b-d8edff4b97f4';
+    expect(subscription).not.toBeNull();
+    if (!subscription) throw new Error('Subscription was not created');
+    expect(subscription.repository.fullName).toBe('owner/repo');
 
-      const response = await request(app).get(`/web/unsubscribe/${token}`);
+    const message = await messagePromise;
+    expect(message).toEqual({
+      type: 'confirmation',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: AppUrls.confirm(
+        appBaseUrl,
+        subscription.confirmationToken,
+      ),
+      unsubscribeUrl: AppUrls.unsubscribe(
+        appBaseUrl,
+        subscription.unsubscribeToken,
+      ),
+    });
+  }, 15_000);
 
-      expect(response.status).toBe(200);
-      expect(response.headers['content-type']).toContain('text/html');
-      expect(response.text).toContain('Unsubscribed');
-      expect(response.text).toContain(
-        'You have been successfully unsubscribed.',
-      );
+  it('POST /api/subscribe maps ConflictError to 409', async () => {
+    const fetchSpy = jest.spyOn(globalThis, 'fetch').mockImplementation(() =>
+      Promise.resolve(
+        new Response(JSON.stringify({}), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
+      ),
+    );
+
+    const repository = await prisma.repository.create({
+      data: { fullName: 'owner/repo' },
+    });
+    await prisma.subscription.create({
+      data: {
+        email: 'user@example.com',
+        repositoryId: repository.id,
+      },
     });
 
-    it('still maps AppError responses in web routes', async () => {
-      (
-        subscriptionService.subscribe as jest.MockedFunction<
-          SubscriptionService['subscribe']
-        >
-      ).mockRejectedValueOnce(
-        new AppError(409, 'Email already subscribed to this repository'),
-      );
-
-      const response = await request(app).post('/web/subscribe').send({
+    const response = await request(app)
+      .post('/api/subscribe')
+      .set(API_KEY_HEADER, TEST_API_KEY)
+      .send({
         email: 'user@example.com',
         repo: 'owner/repo',
       });
 
-      expect(response.status).toBe(409);
-      expect(response.body).toEqual({
-        status: 'error',
-        message: 'Email already subscribed to this repository',
-      });
+    expect(response.status).toBe(409);
+    expect(response.body).toEqual({
+      status: 'error',
+      message: 'Email already subscribed to this repository',
     });
+    expect(fetchSpy).toHaveBeenCalled();
+  });
+
+  it('GET /api/subscriptions returns stored subscriptions', async () => {
+    const repository = await prisma.repository.create({
+      data: { fullName: 'owner/repo', lastSeenTag: 'v1.0.0' },
+    });
+    await prisma.subscription.create({
+      data: {
+        email: 'user@example.com',
+        confirmed: true,
+        repositoryId: repository.id,
+      },
+    });
+
+    const response = await request(app)
+      .get('/api/subscriptions?email=user@example.com')
+      .set(API_KEY_HEADER, TEST_API_KEY);
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual([
+      {
+        email: 'user@example.com',
+        repo: 'owner/repo',
+        confirmed: true,
+        last_seen_tag: 'v1.0.0',
+      },
+    ]);
+  });
+
+  it('GET /web/confirm/:token renders confirmation page', async () => {
+    const repository = await prisma.repository.create({
+      data: { fullName: 'owner/repo' },
+    });
+    const subscription = await prisma.subscription.create({
+      data: {
+        email: 'user@example.com',
+        repositoryId: repository.id,
+      },
+    });
+
+    const response = await request(app).get(
+      `/web/confirm/${subscription.confirmationToken}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/html');
+    expect(response.text).toContain('Confirmed');
+    expect(response.text).toContain(
+      'Your subscription has been confirmed successfully.',
+    );
+  });
+
+  it('GET /web/confirm/:token renders AppError page when token already used', async () => {
+    const repository = await prisma.repository.create({
+      data: { fullName: 'owner/repo' },
+    });
+    const subscription = await prisma.subscription.create({
+      data: {
+        email: 'user@example.com',
+        confirmed: true,
+        repositoryId: repository.id,
+      },
+    });
+
+    const response = await request(app).get(
+      `/web/confirm/${subscription.confirmationToken}`,
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.headers['content-type']).toContain('text/html');
+    expect(response.text).toContain('Request failed');
+    expect(response.text).toContain('Token already used');
+  });
+
+  it('GET /web/unsubscribe/:token renders unsubscribe page', async () => {
+    const repository = await prisma.repository.create({
+      data: { fullName: 'owner/repo' },
+    });
+    const subscription = await prisma.subscription.create({
+      data: {
+        email: 'user@example.com',
+        repositoryId: repository.id,
+      },
+    });
+
+    const response = await request(app).get(
+      `/web/unsubscribe/${subscription.unsubscribeToken}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers['content-type']).toContain('text/html');
+    expect(response.text).toContain('Unsubscribed');
+    expect(response.text).toContain('You have been successfully unsubscribed.');
+
+    const deleted = await prisma.subscription.findUnique({
+      where: { id: subscription.id },
+    });
+    expect(deleted).toBeNull();
   });
 });

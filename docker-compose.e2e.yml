@@ -1,0 +1,110 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: github_notifier
+    ports:
+      - '5434:5432'
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d github_notifier']
+      interval: 2s
+      timeout: 2s
+      retries: 10
+      start_period: 2s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - '6381:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    ports:
+      - '8025:8025'
+    healthcheck:
+      test: ['CMD', 'nc', '-z', 'localhost', '1025']
+      interval: 2s
+      timeout: 2s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3.13-alpine
+    ports:
+      - '5675:5672'
+    healthcheck:
+      test: ['CMD', 'rabbitmq-diagnostics', 'ping']
+      interval: 2s
+      timeout: 2s
+      retries: 15
+      start_period: 10s
+
+  notification:
+    build:
+      context: .
+      dockerfile: Dockerfile.notification
+    environment:
+      NOTIFICATION_PORT: 3001
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      SMTP_HOST: mailhog
+      SMTP_PORT: '1025'
+      EMAIL_USER: test@example.com
+      EMAIL_PASS: test
+    depends_on:
+      mailhog:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3001/health', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+
+  notifier-app:
+    build: .
+    environment:
+      NODE_ENV: test
+      PORT: 3000
+      APP_BASE_URL: http://localhost:3002
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/github_notifier
+      REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      API_KEY: test-api-key
+      RELEASE_CHECK_CRON: '0 0 1 1 *'
+    ports:
+      - '3002:3000'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      notification:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "require('http').get('http://localhost:3000/health', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 15
