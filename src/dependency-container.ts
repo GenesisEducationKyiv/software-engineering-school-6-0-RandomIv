@@ -5,6 +5,7 @@ import { ScannerService } from './modules/scanner/scanner.service';
 import { SubscriptionService } from './modules/subscription/subscription.service';
 import { PrismaSubscriptionRepository } from './modules/subscription/subscription.repository';
 import { MqNotificationProvider } from './modules/notification/rabbitmq/rabbitmq.provider';
+import { SubscriptionSagaOrchestrator } from './modules/subscription/saga/subscription-saga.orchestrator';
 import { ReleaseCheckScheduler } from './schedulers/release-check.scheduler';
 import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
 
@@ -28,6 +29,7 @@ export interface DependencyContainer {
   webController: SubscriptionWebController;
   grpcHandlers: ReleaseNotifierHandlers;
   scheduler: ReleaseCheckScheduler;
+  subscriptionSagaOrchestrator: SubscriptionSagaOrchestrator;
 }
 
 export const createDependencyContainer = (): DependencyContainer => {
@@ -37,6 +39,11 @@ export const createDependencyContainer = (): DependencyContainer => {
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
+
+  const subscriptionSagaOrchestrator = new SubscriptionSagaOrchestrator(
+    config.RABBITMQ_URL,
+    subscriptionRepository,
+  );
 
   const pureHttpGitHubClient = new HttpGitHubClient();
   const cachedGitHubClient = new CachedGitHubClient(
@@ -52,7 +59,7 @@ export const createDependencyContainer = (): DependencyContainer => {
     subscriptionRepository,
     repositoryProvider,
     repositoryRepository,
-    notificationPort,
+    subscriptionSagaOrchestrator,
     appBaseUrl,
   );
 
@@ -83,5 +90,6 @@ export const createDependencyContainer = (): DependencyContainer => {
     webController,
     grpcHandlers,
     scheduler,
+    subscriptionSagaOrchestrator,
   };
 };

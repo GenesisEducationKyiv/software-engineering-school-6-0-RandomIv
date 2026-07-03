@@ -8,7 +8,7 @@ import {
 import { SubscriptionService } from '../../../../src/modules/subscription/subscription.service';
 import type { SubscriptionRepositoryInterface } from '../../../../src/modules/subscription/interfaces/subscription-repository.interface';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
-import type { NotificationPort } from '../../../../src/common/interfaces/notification-port.interface';
+import type { SubscriptionSaga } from '../../../../src/modules/subscription/saga/subscription-saga.interface';
 import { Prisma } from '../../../../src/generated/prisma/client';
 import type { RepositoryProvider } from '../../../../src/modules/subscription/interfaces/repository-provider.interface';
 import { SubscriptionNotificationError } from '../../../../src/modules/subscription/subscription.error';
@@ -36,7 +36,7 @@ describe('subscription.service', () => {
   let subscriptionRepository: jest.Mocked<SubscriptionRepositoryInterface>;
   let repositoryProvider: jest.Mocked<RepositoryProvider>;
   let repositoryRepository: jest.Mocked<RepositoryRepository>;
-  let notificationPort: jest.Mocked<NotificationPort>;
+  let subscriptionSaga: jest.Mocked<SubscriptionSaga>;
   let service: SubscriptionService;
   const appBaseUrl = 'https://app.example.com';
 
@@ -46,6 +46,7 @@ describe('subscription.service', () => {
       findByConfirmationToken: jest.fn(),
       confirmByToken: jest.fn(),
       deleteByUnsubscribeToken: jest.fn(),
+      deleteById: jest.fn(),
       findByEmail: jest.fn(),
     } as unknown as jest.Mocked<SubscriptionRepositoryInterface>;
 
@@ -59,22 +60,21 @@ describe('subscription.service', () => {
       updateLastSeenTag: jest.fn(),
     } as unknown as jest.Mocked<RepositoryRepository>;
 
-    notificationPort = {
-      sendConfirmation: jest.fn(),
-      sendRelease: jest.fn(),
+    subscriptionSaga = {
+      start: jest.fn(),
     };
 
     service = new SubscriptionService(
       subscriptionRepository,
       repositoryProvider,
       repositoryRepository,
-      notificationPort,
+      subscriptionSaga,
       appBaseUrl,
     );
   });
 
   describe('subscribe', () => {
-    it('should successfully create a subscription and send an email', async () => {
+    it('should successfully create a subscription and start the confirmation saga', async () => {
       repositoryProvider.checkRepoExists.mockResolvedValue(true);
       repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
@@ -82,7 +82,7 @@ describe('subscription.service', () => {
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
-      notificationPort.sendConfirmation.mockResolvedValue();
+      subscriptionSaga.start.mockResolvedValue();
 
       const result = await service.subscribe({
         email: 'test@example.com',
@@ -93,12 +93,19 @@ describe('subscription.service', () => {
       expect(repositoryProvider.checkRepoExists).toHaveBeenCalledWith(
         'owner/repo',
       );
-      expect(notificationPort.sendConfirmation).toHaveBeenCalledWith(
-        'test@example.com',
-        'owner/repo',
-        AppUrls.confirm(appBaseUrl, subscriptionRecord.confirmationToken),
-        AppUrls.unsubscribe(appBaseUrl, subscriptionRecord.unsubscribeToken),
-      );
+      expect(subscriptionSaga.start).toHaveBeenCalledWith({
+        subscriptionId: subscriptionRecord.id,
+        email: 'test@example.com',
+        repo: 'owner/repo',
+        confirmationUrl: AppUrls.confirm(
+          appBaseUrl,
+          subscriptionRecord.confirmationToken,
+        ),
+        unsubscribeUrl: AppUrls.unsubscribe(
+          appBaseUrl,
+          subscriptionRecord.unsubscribeToken,
+        ),
+      });
     });
 
     it('should throw NotFoundError if repository does not exist', async () => {
@@ -109,7 +116,7 @@ describe('subscription.service', () => {
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it('should roll back and throw SubscriptionNotificationError if email sending fails', async () => {
+    it('should roll back and throw SubscriptionNotificationError if starting the saga fails', async () => {
       repositoryProvider.checkRepoExists.mockResolvedValue(true);
       repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
@@ -117,18 +124,18 @@ describe('subscription.service', () => {
       subscriptionRepository.createSubscription.mockResolvedValue(
         subscriptionRecord,
       );
-      notificationPort.sendConfirmation.mockRejectedValue(
-        new Error('Notification error'),
+      subscriptionSaga.start.mockRejectedValue(
+        new Error('RabbitMQ unreachable'),
       );
-      subscriptionRepository.deleteByUnsubscribeToken.mockResolvedValue(1);
+      subscriptionRepository.deleteById.mockResolvedValue(1);
 
       await expect(
         service.subscribe({ email: 'test@example.com', repo: 'owner/repo' }),
       ).rejects.toBeInstanceOf(SubscriptionNotificationError);
 
-      expect(
-        subscriptionRepository.deleteByUnsubscribeToken,
-      ).toHaveBeenCalledWith(subscriptionRecord.unsubscribeToken);
+      expect(subscriptionRepository.deleteById).toHaveBeenCalledWith(
+        subscriptionRecord.id,
+      );
     });
 
     it('propagates ConflictError from repository', async () => {

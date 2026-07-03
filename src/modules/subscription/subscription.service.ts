@@ -7,9 +7,9 @@ import type { SubscriptionEntity } from './entities/subscription.entity';
 import type { SubscriptionWithRepositoryEntity } from './entities/subscription-with-repository.entity';
 import type { RepositoryRepository } from '../repository/repository.repository';
 import { BadRequestError, NotFoundError } from '../../common/errors';
-import type { NotificationPort } from '../../common/interfaces/notification-port.interface';
 import type { RepositoryProvider } from './interfaces/repository-provider.interface';
 import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
+import type { SubscriptionSaga } from './saga/subscription-saga.interface';
 import { AppUrls } from '../../common/utils/url-builder.util';
 import { SubscriptionNotificationError } from './subscription.error';
 
@@ -18,7 +18,7 @@ export class SubscriptionService {
     private readonly subscriptionRepository: SubscriptionRepositoryInterface,
     private readonly repositoryProvider: RepositoryProvider,
     private readonly repositoryRepository: RepositoryRepository,
-    private readonly notificationPort: NotificationPort,
+    private readonly subscriptionSaga: SubscriptionSaga,
     private readonly appBaseUrl: string,
   ) {}
 
@@ -34,7 +34,7 @@ export class SubscriptionService {
       repositoryId: repoRecord.id,
     });
 
-    await this.notifyAndHandleRollback(subscription, repo, email);
+    await this.startSagaAndHandleRollback(subscription, repo, email);
 
     return subscription;
   }
@@ -73,7 +73,7 @@ export class SubscriptionService {
     }
   }
 
-  private async notifyAndHandleRollback(
+  private async startSagaAndHandleRollback(
     subscription: SubscriptionEntity,
     repo: string,
     email: string,
@@ -88,16 +88,15 @@ export class SubscriptionService {
         subscription.unsubscribeToken,
       );
 
-      await this.notificationPort.sendConfirmation(
+      await this.subscriptionSaga.start({
+        subscriptionId: subscription.id,
         email,
         repo,
         confirmationUrl,
         unsubscribeUrl,
-      );
+      });
     } catch {
-      await this.subscriptionRepository.deleteByUnsubscribeToken(
-        subscription.unsubscribeToken,
-      );
+      await this.subscriptionRepository.deleteById(subscription.id);
       throw new SubscriptionNotificationError();
     }
   }

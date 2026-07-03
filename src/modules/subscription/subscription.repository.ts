@@ -51,6 +51,13 @@ export class PrismaSubscriptionRepository implements SubscriptionRepositoryInter
     return result.count;
   }
 
+  async deleteById(id: string): Promise<number> {
+    const result = await this.prismaClient.subscription.deleteMany({
+      where: { id },
+    });
+    return result.count;
+  }
+
   async findByEmail(
     email: string,
     confirmedOnly = false,

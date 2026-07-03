@@ -1,11 +1,13 @@
 import type { Server as HttpServer } from 'node:http';
 import type { ScheduledTask } from 'node-cron';
 import type * as grpc from '@grpc/grpc-js';
+import type amqp from 'amqplib';
 import { createApp } from './app';
 import { config } from './config';
 import { logger } from './core/logger';
 import { createDependencyContainer } from './dependency-container';
 import { startGrpcServer } from './core/grpc/grpc.server';
+import { startSubscriptionSagaConsumer } from './modules/subscription/saga/subscription-saga.consumer';
 
 const PORT = config.PORT;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -13,6 +15,7 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 let httpServer: HttpServer | null = null;
 let grpcServer: grpc.Server | null = null;
 let releaseCheckTask: ScheduledTask | null = null;
+let sagaEventsModel: amqp.RecoveringChannelModel | null = null;
 let isShuttingDown = false;
 
 const shutdownHttpServer = async (): Promise<void> => {
@@ -49,6 +52,14 @@ const shutdownGrpcServer = async (): Promise<void> => {
   });
 };
 
+const shutdownSagaConsumer = async (): Promise<void> => {
+  if (!sagaEventsModel) {
+    return;
+  }
+
+  await sagaEventsModel.close();
+};
+
 const setupGracefulShutdown = (): void => {
   const handleShutdownSignal = async (
     signal: NodeJS.Signals,
@@ -73,7 +84,11 @@ const setupGracefulShutdown = (): void => {
     forceShutdownTimer.unref();
 
     try {
-      await Promise.all([shutdownHttpServer(), shutdownGrpcServer()]);
+      await Promise.all([
+        shutdownHttpServer(),
+        shutdownGrpcServer(),
+        shutdownSagaConsumer(),
+      ]);
       clearTimeout(forceShutdownTimer);
       logger.info('Graceful shutdown completed.');
       process.exit(0);
@@ -110,6 +125,11 @@ const bootstrap = async (): Promise<void> => {
   grpcServer = await startGrpcServer(dependencyContainer.grpcHandlers);
 
   releaseCheckTask = dependencyContainer.scheduler.start();
+
+  sagaEventsModel = await startSubscriptionSagaConsumer(
+    config.RABBITMQ_URL,
+    dependencyContainer.subscriptionSagaOrchestrator,
+  );
 };
 
 bootstrap().catch((error: unknown) => {

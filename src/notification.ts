@@ -12,6 +12,7 @@ import {
   createNotificationRouter,
 } from './modules/notification/rest/rest.controller';
 import { startMqConsumer } from './modules/notification/rabbitmq/rabbitmq.consumer';
+import { startSubscriptionSagaCommandConsumer } from './modules/notification/saga/subscription-saga.consumer';
 import { logger } from './core/logger';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -61,6 +62,10 @@ const bootstrap = async (): Promise<void> => {
   });
 
   const mqModel = await startMqConsumer(config.RABBITMQ_URL, channel);
+  const sagaCommandsModel = await startSubscriptionSagaCommandConsumer(
+    config.RABBITMQ_URL,
+    channel,
+  );
 
   let isShuttingDown = false;
 
@@ -81,6 +86,7 @@ const bootstrap = async (): Promise<void> => {
           server.close((err) => (err ? reject(err) : resolve())),
         ),
         mqModel.close(),
+        sagaCommandsModel.close(),
       ]);
       clearTimeout(forceExit);
       logger.info('Notification service stopped.');
