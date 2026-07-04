@@ -35,9 +35,12 @@ services:
     environment:
       NODE_ENV: production
       NOTIFICATION_PORT: 3001
+      NOTIFICATION_GRPC_HOST: '0.0.0.0'
+      NOTIFICATION_GRPC_PORT: 50061
       RABBITMQ_URL: amqp://rabbitmq:5672
     ports:
       - "3001:3001"
+      - "50061:50061"
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine

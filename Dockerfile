@@ -17,9 +17,10 @@ COPY tsconfig.json ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 COPY proto ./proto
+COPY buf.yaml buf.gen.yaml ./
 COPY public ./public
 COPY src ./src
-RUN DATABASE_URL=$PRISMA_GENERATE_DATABASE_URL npm run db:generate && npm run build
+RUN DATABASE_URL=$PRISMA_GENERATE_DATABASE_URL npm run db:generate && npm run proto:generate && npm run build
 
 FROM base AS production-deps
 ENV NODE_ENV=production

@@ -56,8 +56,6 @@ export const createDependencyContainer = (): DependencyContainer => {
   const rabbitMqProvider = new RabbitMqProvider(plainPublisher);
   const sagaConfirmationProvider = new SagaConfirmationProvider(sagaPublisher);
 
-  // Варіант А (без Саги): const confirmationPort = rabbitMqProvider;
-  // Варіант Б (із Сагою):
   const confirmationPort = sagaConfirmationProvider;
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
