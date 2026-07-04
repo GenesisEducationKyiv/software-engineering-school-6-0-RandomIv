@@ -11,9 +11,20 @@ import {
   NotificationRestController,
   createNotificationRouter,
 } from './modules/notification/rest/rest.controller';
-import { startMqConsumer } from './modules/notification/rabbitmq/rabbitmq.consumer';
-import { startSubscriptionSagaCommandConsumer } from './modules/notification/saga/subscription-saga.consumer';
 import { logger } from './core/logger';
+
+// Імпортуємо нашу нову інфраструктуру та обробники
+import { RabbitConsumer } from './core/rabbitmq/rabbit-consumer';
+import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
+import { NotificationMessageHandler } from './modules/notification/rabbitmq/notification-message.handler';
+import { SagaCommandHandler } from './modules/notification/rabbitmq/saga-command.handler';
+import { NOTIFICATION_QUEUE, type NotificationMessage } from './modules/notification/rabbitmq/rabbitmq.contract';
+import {
+  SEND_CONFIRMATION_COMMAND_QUEUE,
+  SUBSCRIPTION_SAGA_EVENTS_QUEUE,
+  type SendConfirmationEmailCommand,
+  type SubscriptionSagaEvent,
+} from './modules/subscription/saga/subscription-saga.contract';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -21,9 +32,7 @@ const bootstrap = async (): Promise<void> => {
   const configSchema = emailSchema.extend(notificationServiceSchema.shape);
   const parsed = configSchema.safeParse(process.env);
   if (!parsed.success) {
-    logger.error(
-      'Invalid or missing environment variables for notification service',
-    );
+    logger.error('Invalid or missing environment variables for notification service');
     process.exit(1);
   }
   const config = parsed.data;
@@ -54,18 +63,32 @@ const bootstrap = async (): Promise<void> => {
 
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(config.NOTIFICATION_PORT, () => {
-      logger.info(
-        `Notification service running on port ${config.NOTIFICATION_PORT}`,
-      );
+      logger.info(`Notification service running on port ${config.NOTIFICATION_PORT}`);
       resolve(s);
     });
   });
 
-  const mqModel = await startMqConsumer(config.RABBITMQ_URL, channel);
-  const sagaCommandsModel = await startSubscriptionSagaCommandConsumer(
+  // 🟦 1. Налаштовуємо і запускаємо універсальний танк для звичайної пошти
+  const notificationConsumer = new RabbitConsumer<NotificationMessage>(
     config.RABBITMQ_URL,
-    channel,
+    NOTIFICATION_QUEUE,
+    new NotificationMessageHandler(channel),
   );
+  const mqModel = await notificationConsumer.start();
+
+  // 🟩 2. Налаштовуємо паблішер зворотних звітів Саги в API
+  const sagaEventPublisher = new RabbitMessagePublisher<SubscriptionSagaEvent>(
+    config.RABBITMQ_URL,
+    SUBSCRIPTION_SAGA_EVENTS_QUEUE,
+  );
+
+  // 🟧 3. Налаштовуємо і запускаємо універсальний танк для команд Саги
+  const sagaCommandsConsumer = new RabbitConsumer<SendConfirmationEmailCommand>(
+    config.RABBITMQ_URL,
+    SEND_CONFIRMATION_COMMAND_QUEUE,
+    new SagaCommandHandler(channel, sagaEventPublisher),
+  );
+  const sagaCommandsModel = await sagaCommandsConsumer.start();
 
   let isShuttingDown = false;
 
