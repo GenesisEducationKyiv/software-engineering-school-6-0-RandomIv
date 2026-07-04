@@ -7,7 +7,11 @@ import { config } from './config';
 import { logger } from './core/logger';
 import { createDependencyContainer } from './dependency-container';
 import { startGrpcServer } from './core/grpc/grpc.server';
-import { startSubscriptionSagaConsumer } from './modules/subscription/saga/subscription-saga.consumer';
+import { RabbitConsumer } from './core/rabbitmq/rabbit-consumer';
+import {
+  SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
+  type SubscriptionNotificationEvent,
+} from './modules/notification/rabbitmq/saga/saga.contract';
 
 const PORT = config.PORT;
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -126,10 +130,12 @@ const bootstrap = async (): Promise<void> => {
 
   releaseCheckTask = dependencyContainer.scheduler.start();
 
-  sagaEventsModel = await startSubscriptionSagaConsumer(
+  const sagaEventsConsumer = new RabbitConsumer<SubscriptionNotificationEvent>(
     config.RABBITMQ_URL,
+    SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
     dependencyContainer.subscriptionSagaOrchestrator,
   );
+  sagaEventsModel = await sagaEventsConsumer.start();
 };
 
 bootstrap().catch((error: unknown) => {

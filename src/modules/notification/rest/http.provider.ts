@@ -1,10 +1,14 @@
-import type { NotificationPort } from '../../../common/interfaces/notification-port.interface';
+import type { ConfirmationPort } from '../../../common/interfaces/confirmation-port.interface';
+import type { ReleaseNotificationPort } from '../../../common/interfaces/release-notification-port.interface';
 import { httpClient } from '../../../common/utils/http-client.util';
 
-export class HttpNotificationProvider implements NotificationPort {
+export class HttpNotificationProvider
+  implements ConfirmationPort, ReleaseNotificationPort
+{
   constructor(private readonly notificationUrl: string) {}
 
   async sendConfirmation(
+    _subscriptionId: string,
     to: string,
     repo: string,
     confirmationUrl: string,

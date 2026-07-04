@@ -23,6 +23,9 @@ export class NotificationMessageHandler implements MessageHandler<NotificationMe
         message.unsubscribeUrl,
       );
     }
-    logger.info({ type: message.type }, '[MQ Handler] Notification processed successfully');
+    logger.info(
+      { type: message.type },
+      '[MQ Handler] Notification processed successfully',
+    );
   }
 }

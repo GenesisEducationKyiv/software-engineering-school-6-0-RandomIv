@@ -12,19 +12,20 @@ import {
   createNotificationRouter,
 } from './modules/notification/rest/rest.controller';
 import { logger } from './core/logger';
-
-// Імпортуємо нашу нову інфраструктуру та обробники
 import { RabbitConsumer } from './core/rabbitmq/rabbit-consumer';
 import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
-import { NotificationMessageHandler } from './modules/notification/rabbitmq/notification-message.handler';
-import { SagaCommandHandler } from './modules/notification/rabbitmq/saga-command.handler';
-import { NOTIFICATION_QUEUE, type NotificationMessage } from './modules/notification/rabbitmq/rabbitmq.contract';
+import { NotificationMessageHandler } from './modules/notification/rabbitmq/rabbitmq.handler';
+import { SendConfirmationCommandHandler } from './modules/notification/rabbitmq/saga/saga.handler';
+import {
+  NOTIFICATION_QUEUE,
+  type NotificationMessage,
+} from './modules/notification/rabbitmq/rabbitmq.contract';
 import {
   SEND_CONFIRMATION_COMMAND_QUEUE,
-  SUBSCRIPTION_SAGA_EVENTS_QUEUE,
-  type SendConfirmationEmailCommand,
-  type SubscriptionSagaEvent,
-} from './modules/subscription/saga/subscription-saga.contract';
+  SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
+  type SendConfirmationCommand,
+  type SubscriptionNotificationEvent,
+} from './modules/notification/rabbitmq/saga/saga.contract';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -32,7 +33,9 @@ const bootstrap = async (): Promise<void> => {
   const configSchema = emailSchema.extend(notificationServiceSchema.shape);
   const parsed = configSchema.safeParse(process.env);
   if (!parsed.success) {
-    logger.error('Invalid or missing environment variables for notification service');
+    logger.error(
+      'Invalid or missing environment variables for notification service',
+    );
     process.exit(1);
   }
   const config = parsed.data;
@@ -63,12 +66,13 @@ const bootstrap = async (): Promise<void> => {
 
   const server: Server = await new Promise((resolve) => {
     const s = app.listen(config.NOTIFICATION_PORT, () => {
-      logger.info(`Notification service running on port ${config.NOTIFICATION_PORT}`);
+      logger.info(
+        `Notification service running on port ${config.NOTIFICATION_PORT}`,
+      );
       resolve(s);
     });
   });
 
-  // 🟦 1. Налаштовуємо і запускаємо універсальний танк для звичайної пошти
   const notificationConsumer = new RabbitConsumer<NotificationMessage>(
     config.RABBITMQ_URL,
     NOTIFICATION_QUEUE,
@@ -76,19 +80,19 @@ const bootstrap = async (): Promise<void> => {
   );
   const mqModel = await notificationConsumer.start();
 
-  // 🟩 2. Налаштовуємо паблішер зворотних звітів Саги в API
-  const sagaEventPublisher = new RabbitMessagePublisher<SubscriptionSagaEvent>(
-    config.RABBITMQ_URL,
-    SUBSCRIPTION_SAGA_EVENTS_QUEUE,
-  );
+  const subscriptionEventPublisher =
+    new RabbitMessagePublisher<SubscriptionNotificationEvent>(
+      config.RABBITMQ_URL,
+      SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
+    );
 
-  // 🟧 3. Налаштовуємо і запускаємо універсальний танк для команд Саги
-  const sagaCommandsConsumer = new RabbitConsumer<SendConfirmationEmailCommand>(
-    config.RABBITMQ_URL,
-    SEND_CONFIRMATION_COMMAND_QUEUE,
-    new SagaCommandHandler(channel, sagaEventPublisher),
-  );
-  const sagaCommandsModel = await sagaCommandsConsumer.start();
+  const confirmationCommandsConsumer =
+    new RabbitConsumer<SendConfirmationCommand>(
+      config.RABBITMQ_URL,
+      SEND_CONFIRMATION_COMMAND_QUEUE,
+      new SendConfirmationCommandHandler(channel, subscriptionEventPublisher),
+    );
+  const confirmationCommandsModel = await confirmationCommandsConsumer.start();
 
   let isShuttingDown = false;
 
@@ -109,7 +113,7 @@ const bootstrap = async (): Promise<void> => {
           server.close((err) => (err ? reject(err) : resolve())),
         ),
         mqModel.close(),
-        sagaCommandsModel.close(),
+        confirmationCommandsModel.close(),
       ]);
       clearTimeout(forceExit);
       logger.info('Notification service stopped.');

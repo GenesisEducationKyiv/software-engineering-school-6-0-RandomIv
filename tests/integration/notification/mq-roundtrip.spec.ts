@@ -1,7 +1,10 @@
 import amqp from 'amqplib';
-import { MqNotificationProvider } from '../../../src/modules/notification/rabbitmq/rabbitmq.provider';
-import { startMqConsumer } from '../../../src/modules/notification/rabbitmq/rabbitmq.consumer';
+import { RabbitConsumer } from '../../../src/core/rabbitmq/rabbit-consumer';
+import { RabbitMessagePublisher } from '../../../src/core/rabbitmq/rabbit-publisher';
+import { RabbitMqProvider } from '../../../src/modules/notification/rabbitmq/rabbitmq.provider';
+import { NotificationMessageHandler } from '../../../src/modules/notification/rabbitmq/rabbitmq.handler';
 import { NOTIFICATION_QUEUE } from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import type { NotificationMessage } from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
 import type { NotificationChannel } from '../../../src/modules/notification/delivery/notification-channel.interface';
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL ?? 'amqp://localhost:5673';
@@ -27,6 +30,8 @@ const waitFor = (
 describe('notification MQ round-trip', () => {
   let connection: amqp.ChannelModel;
   let adminChannel: amqp.Channel;
+  let consumerModel: amqp.RecoveringChannelModel;
+  let provider: RabbitMqProvider;
 
   const channel: jest.Mocked<NotificationChannel> = {
     sendConfirmation: jest.fn().mockResolvedValue(undefined),
@@ -38,7 +43,18 @@ describe('notification MQ round-trip', () => {
     adminChannel = await connection.createChannel();
     await adminChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
 
-    await startMqConsumer(RABBITMQ_URL, channel);
+    const consumer = new RabbitConsumer<NotificationMessage>(
+      RABBITMQ_URL,
+      NOTIFICATION_QUEUE,
+      new NotificationMessageHandler(channel),
+    );
+    consumerModel = await consumer.start();
+
+    const publisher = new RabbitMessagePublisher<NotificationMessage>(
+      RABBITMQ_URL,
+      NOTIFICATION_QUEUE,
+    );
+    provider = new RabbitMqProvider(publisher);
   });
 
   beforeEach(async () => {
@@ -49,12 +65,12 @@ describe('notification MQ round-trip', () => {
   afterAll(async () => {
     await adminChannel.deleteQueue(NOTIFICATION_QUEUE);
     await connection.close();
+    await consumerModel.close();
   });
 
   it('consumer receives and processes confirmation message published by provider', async () => {
-    const provider = new MqNotificationProvider(RABBITMQ_URL);
-
     await provider.sendConfirmation(
+      'sub-1',
       'user@example.com',
       'owner/repo',
       'https://app.example.com/confirm/token',
@@ -73,8 +89,6 @@ describe('notification MQ round-trip', () => {
   });
 
   it('consumer receives and processes release message published by provider', async () => {
-    const provider = new MqNotificationProvider(RABBITMQ_URL);
-
     await provider.sendRelease(
       'user@example.com',
       'owner/repo',

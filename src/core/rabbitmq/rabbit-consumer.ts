@@ -33,17 +33,25 @@ export class RabbitConsumer<T> {
       void this.handleMessage(channel, msg);
     });
 
-    logger.info(`[MQ Infrastructure] Consumer listening on queue "${this.queue}"`);
+    logger.info(
+      `[MQ Infrastructure] Consumer listening on queue "${this.queue}"`,
+    );
   }
 
-  private async handleMessage(channel: amqp.Channel, msg: amqp.ConsumeMessage | null): Promise<void> {
+  private async handleMessage(
+    channel: amqp.Channel,
+    msg: amqp.ConsumeMessage | null,
+  ): Promise<void> {
     if (!msg) return;
 
     let payload: T;
     try {
       payload = JSON.parse(msg.content.toString()) as T;
     } catch (error) {
-      logger.error({ err: error }, `[MQ Infrastructure] Failed to parse message from "${this.queue}"`);
+      logger.error(
+        { err: error },
+        `[MQ Infrastructure] Failed to parse message from "${this.queue}"`,
+      );
       channel.nack(msg, false, !msg.fields.redelivered);
       return;
     }
@@ -52,7 +60,10 @@ export class RabbitConsumer<T> {
       await this.handler.handle(payload);
       channel.ack(msg);
     } catch (error) {
-      logger.error({ err: error }, `[MQ Infrastructure] Handler failed for message from "${this.queue}"`);
+      logger.error(
+        { err: error },
+        `[MQ Infrastructure] Handler failed for message from "${this.queue}"`,
+      );
 
       if (!msg.fields.redelivered) {
         channel.nack(msg, false, true);

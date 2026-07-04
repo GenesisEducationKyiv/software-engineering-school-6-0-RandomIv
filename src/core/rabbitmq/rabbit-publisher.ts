@@ -27,8 +27,12 @@ export class RabbitMessagePublisher<T> implements MessagePublisher<T> {
     const channel = await this.model.createChannel();
     await channel.assertQueue(this.queue, { durable: true });
 
-    channel.on('error', () => { this.channel = null; });
-    channel.on('close', () => { this.channel = null; });
+    channel.on('error', () => {
+      this.channel = null;
+    });
+    channel.on('close', () => {
+      this.channel = null;
+    });
 
     this.channel = channel;
     return this.channel;

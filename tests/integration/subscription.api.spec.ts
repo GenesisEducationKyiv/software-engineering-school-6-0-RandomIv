@@ -6,8 +6,8 @@ import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware'
 import { AppUrls } from '../../src/common/utils/url-builder.util';
 import { config } from '../../src/config';
 import prisma from '../../src/core/db/db';
-import { SEND_CONFIRMATION_COMMAND_QUEUE } from '../../src/modules/subscription/saga/subscription-saga.contract';
-import type { SendConfirmationEmailCommand } from '../../src/modules/subscription/saga/subscription-saga.contract';
+import { SEND_CONFIRMATION_COMMAND_QUEUE } from '../../src/modules/notification/rabbitmq/saga/saga.contract';
+import type { SendConfirmationCommand } from '../../src/modules/notification/rabbitmq/saga/saga.contract';
 
 const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 const TEST_API_KEY = config.API_KEY;
@@ -16,7 +16,7 @@ let app: ReturnType<typeof createApp>;
 let mqConnection: amqp.ChannelModel;
 let mqChannel: amqp.Channel;
 
-const consumeNextCommand = (): Promise<SendConfirmationEmailCommand> =>
+const consumeNextCommand = (): Promise<SendConfirmationCommand> =>
   new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error('Timed out waiting for MQ message')),
@@ -30,7 +30,7 @@ const consumeNextCommand = (): Promise<SendConfirmationEmailCommand> =>
           clearTimeout(timeout);
           mqChannel.ack(msg);
           resolve(
-            JSON.parse(msg.content.toString()) as SendConfirmationEmailCommand,
+            JSON.parse(msg.content.toString()) as SendConfirmationCommand,
           );
         },
         { noAck: false },
@@ -150,7 +150,7 @@ describe('subscription routes integration', () => {
     const command = await commandPromise;
     expect(command).toEqual({
       subscriptionId: subscription.id,
-      email: 'user@example.com',
+      to: 'user@example.com',
       repo: 'owner/repo',
       confirmationUrl: AppUrls.confirm(
         appBaseUrl,

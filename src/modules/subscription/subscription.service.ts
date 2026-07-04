@@ -9,16 +9,15 @@ import type { RepositoryRepository } from '../repository/repository.repository';
 import { BadRequestError, NotFoundError } from '../../common/errors';
 import type { RepositoryProvider } from './interfaces/repository-provider.interface';
 import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
-import type { SubscriptionSaga } from './saga/subscription-saga.interface';
+import type { ConfirmationPort } from '../../common/interfaces/confirmation-port.interface';
 import { AppUrls } from '../../common/utils/url-builder.util';
-import { SubscriptionNotificationError } from './subscription.error';
 
 export class SubscriptionService {
   constructor(
     private readonly subscriptionRepository: SubscriptionRepositoryInterface,
     private readonly repositoryProvider: RepositoryProvider,
     private readonly repositoryRepository: RepositoryRepository,
-    private readonly subscriptionSaga: SubscriptionSaga,
+    private readonly notificationPort: ConfirmationPort,
     private readonly appBaseUrl: string,
   ) {}
 
@@ -34,7 +33,22 @@ export class SubscriptionService {
       repositoryId: repoRecord.id,
     });
 
-    await this.startSagaAndHandleRollback(subscription, repo, email);
+    const confirmationUrl = AppUrls.confirm(
+      this.appBaseUrl,
+      subscription.confirmationToken,
+    );
+    const unsubscribeUrl = AppUrls.unsubscribe(
+      this.appBaseUrl,
+      subscription.unsubscribeToken,
+    );
+
+    await this.notificationPort.sendConfirmation(
+      subscription.id,
+      email,
+      repo,
+      confirmationUrl,
+      unsubscribeUrl,
+    );
 
     return subscription;
   }
@@ -70,34 +84,6 @@ export class SubscriptionService {
     const repoExists = await this.repositoryProvider.checkRepoExists(repo);
     if (!repoExists) {
       throw new NotFoundError('Repository not found on GitHub');
-    }
-  }
-
-  private async startSagaAndHandleRollback(
-    subscription: SubscriptionEntity,
-    repo: string,
-    email: string,
-  ): Promise<void> {
-    try {
-      const confirmationUrl = AppUrls.confirm(
-        this.appBaseUrl,
-        subscription.confirmationToken,
-      );
-      const unsubscribeUrl = AppUrls.unsubscribe(
-        this.appBaseUrl,
-        subscription.unsubscribeToken,
-      );
-
-      await this.subscriptionSaga.start({
-        subscriptionId: subscription.id,
-        email,
-        repo,
-        confirmationUrl,
-        unsubscribeUrl,
-      });
-    } catch {
-      await this.subscriptionRepository.deleteById(subscription.id);
-      throw new SubscriptionNotificationError();
     }
   }
 }
