@@ -74,13 +74,21 @@ graph TD
 
 ### Internal Modules
 
-- `subscription` — subscription business logic
-- `github` — external service integration
-- `repository` — repository persistence
-- `notification` — email delivery
-- `scanner` — release detection and dispatch
-- `grpc` — gRPC server and handlers
-- `common` — cache, errors, middleware, metrics, shared utilities
+- `modules/subscription` — subscription business logic (REST/gRPC/web controllers)
+- `modules/notification` — notification delivery across three transports: `rest/`, `grpc/`,
+  `rabbitmq/` (incl. `saga/`), plus the `delivery/` email channel
+- `modules/repository` — repository persistence
+- `modules/scanner` — release detection and dispatch
+- `core` — generic infrastructure: `db`, `cache`, `logger`, `grpc` server, `rabbitmq` transport,
+  `metrics`
+- `integrations` — outbound adapters to third parties: `github`, `email`
+- `config` — environment schema validation
+- `schedulers` — periodic release-check job
+- `views` — HTML template helpers for the public web routes
+- `common` — cross-module contracts, errors, middleware, constants, shared utilities
+
+See `docs/architecture.md` for the full layer diagram and the automatically enforced dependency
+rules.
 
 ---
 
