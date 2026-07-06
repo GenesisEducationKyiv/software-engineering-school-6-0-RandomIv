@@ -1,0 +1,306 @@
+flowchart LR
+
+subgraph 0["src"]
+1["app.ts"]
+subgraph 3["common"]
+subgraph 4["errors"]
+5["index.ts"]
+8["app-error.ts"]
+end
+subgraph 6["constants"]
+7["http-status.constant.ts"]
+Z["messages.constant.ts"]
+end
+subgraph 9["middlewares"]
+A["api-key.middleware.ts"]
+S["error.middleware.ts"]
+13["rate-limit.middleware.ts"]
+end
+subgraph Q["utils"]
+R["api-key.util.ts"]
+14["web-error.util.ts"]
+1C["http-client.util.ts"]
+1D["url-builder.util.ts"]
+end
+subgraph 17["interfaces"]
+18["confirmation-port.interface.ts"]
+19["message-handler.interface.ts"]
+1A["message-publisher.interface.ts"]
+1B["release-notification-port.interface.ts"]
+end
+end
+subgraph B["config"]
+C["index.ts"]
+H["app.config.ts"]
+I["auth.config.ts"]
+J["cache.config.ts"]
+K["cron.config.ts"]
+L["database.config.ts"]
+M["github.config.ts"]
+N["grpc.config.ts"]
+O["notification.config.ts"]
+P["rabbitmq.config.ts"]
+1E["email.config.ts"]
+end
+subgraph D["core"]
+subgraph E["logger"]
+F["index.ts"]
+G["pino.logger.ts"]
+1R["logger.interface.ts"]
+end
+subgraph T["metrics"]
+U["prometheus.ts"]
+end
+subgraph 1F["cache"]
+1G["cache.service.ts"]
+1H["redis.client.ts"]
+subgraph 1I["interfaces"]
+1J["cache-storage.interface.ts"]
+end
+end
+subgraph 1K["db"]
+1L["db.ts"]
+end
+subgraph 1M["grpc"]
+1N["grpc.error-mapper.ts"]
+1O["grpc.server.ts"]
+1P["grpc.types.ts"]
+1Q["with-unary-handler.ts"]
+end
+subgraph 1S["rabbitmq"]
+1T["rabbit-consumer.ts"]
+1U["rabbit-publisher.ts"]
+end
+end
+subgraph V["modules"]
+subgraph W["subscription"]
+subgraph X["controllers"]
+Y["subscription.rest.controller.ts"]
+11["subscription.mapper.ts"]
+12["subscription.web.controller.ts"]
+2F["subscription.grpc.controller.ts"]
+end
+10["subscription.schema.ts"]
+subgraph 2G["providers"]
+2H["github-repository.provider.ts"]
+end
+subgraph 2I["saga"]
+2J["subscription-saga.orchestrator.ts"]
+end
+2K["subscription.repository.ts"]
+2L["subscription.service.ts"]
+subgraph 3I["entities"]
+3J["subscription-with-repository.entity.ts"]
+3K["subscription.entity.ts"]
+end
+subgraph 3L["interfaces"]
+3M["repository-provider.interface.ts"]
+3N["subscription-repository.interface.ts"]
+end
+end
+subgraph 22["notification"]
+subgraph 23["rabbitmq"]
+24["rabbitmq.contract.ts"]
+25["rabbitmq.provider.ts"]
+subgraph 26["saga"]
+27["saga.contract.ts"]
+28["saga.provider.ts"]
+39["saga.handler.ts"]
+end
+38["rabbitmq.handler.ts"]
+end
+subgraph 2Z["delivery"]
+30["email.provider.ts"]
+31["notification-channel.interface.ts"]
+end
+subgraph 32["grpc"]
+33["grpc.provider.ts"]
+35["grpc.server.ts"]
+36["notification.grpc.controller.ts"]
+end
+37["notification.schema.ts"]
+subgraph 3A["rest"]
+3B["http.provider.ts"]
+3C["rest.controller.ts"]
+end
+end
+subgraph 29["repository"]
+2A["repository.repository.ts"]
+subgraph 3D["entities"]
+3E["repository-with-subscription.entity.ts"]
+3F["repository.entity.ts"]
+end
+end
+subgraph 2B["scanner"]
+subgraph 2C["providers"]
+2D["github-release.provider.ts"]
+end
+2E["scanner.service.ts"]
+subgraph 3G["interfaces"]
+3H["release-provider.interface.ts"]
+end
+end
+end
+subgraph 15["views"]
+16["html.template.ts"]
+end
+1V["dependency-container.ts"]
+subgraph 1W["integrations"]
+subgraph 1X["github"]
+1Y["cached-github.client.ts"]
+1Z["github.service.ts"]
+20["github.schema.ts"]
+21["http-github.client.ts"]
+subgraph 2W["interfaces"]
+2X["github-client.interface.ts"]
+2Y["github-release.interface.ts"]
+end
+end
+subgraph 2P["email"]
+2Q["email-transport.interface.ts"]
+2R["email.service.ts"]
+subgraph 2S["templates"]
+2T["confirmation.template.ts"]
+2U["release.template.ts"]
+end
+2V["nodemailer-email.provider.ts"]
+end
+end
+subgraph 2M["schedulers"]
+2N["release-check.scheduler.ts"]
+end
+2O["index.ts"]
+3O["notification.ts"]
+end
+2["path"]
+34["util"]
+1-->5
+1-->A
+1-->S
+1-->U
+1-->Y
+1-->12
+1-->2
+5-->7
+5-->8
+A-->C
+A-->R
+C-->F
+C-->H
+C-->I
+C-->J
+C-->K
+C-->L
+C-->M
+C-->N
+C-->O
+C-->P
+F-->G
+R-->5
+S-->C
+S-->F
+S-->7
+S-->5
+Y-->Z
+Y-->10
+Y-->11
+12-->Z
+12-->13
+12-->14
+12-->16
+12-->10
+14-->16
+14-->5
+1C-->7
+1C-->5
+1G-->1H
+1H-->C
+1H-->F
+1L-->C
+1N-->7
+1N-->5
+1O-->C
+1O-->F
+1O-->2
+1Q-->F
+1Q-->U
+1Q-->1N
+1T-->F
+1V-->C
+1V-->1G
+1V-->1L
+1V-->1U
+1V-->1Y
+1V-->1Z
+1V-->21
+1V-->24
+1V-->25
+1V-->27
+1V-->28
+1V-->2A
+1V-->2D
+1V-->2E
+1V-->2F
+1V-->Y
+1V-->12
+1V-->2H
+1V-->2J
+1V-->2K
+1V-->2L
+1V-->2N
+1Y-->C
+1Y-->F
+1Z-->5
+1Z-->20
+21-->7
+21-->5
+21-->1C
+21-->C
+2E-->5
+2E-->1D
+2E-->F
+2F-->Z
+2F-->R
+2F-->1Q
+2F-->10
+2F-->11
+2J-->F
+2K-->5
+2L-->5
+2L-->1D
+2N-->F
+2O-->1
+2O-->C
+2O-->1O
+2O-->F
+2O-->1T
+2O-->1V
+2O-->27
+2R-->7
+2R-->5
+2R-->F
+2R-->2T
+2R-->2U
+33-->34
+35-->F
+36-->1Q
+36-->37
+38-->F
+39-->F
+3B-->1C
+3C-->37
+3O-->1E
+3O-->O
+3O-->F
+3O-->1T
+3O-->1U
+3O-->2R
+3O-->2V
+3O-->30
+3O-->35
+3O-->36
+3O-->24
+3O-->38
+3O-->27
+3O-->39
+3O-->3C
