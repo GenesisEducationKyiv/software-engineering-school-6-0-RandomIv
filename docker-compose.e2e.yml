@@ -50,6 +50,7 @@ services:
       EMAIL_PASS: test
       API_KEY: test-api-key
       RELEASE_CHECK_CRON: '0 0 1 1 *'
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     ports:
       - '3001:3000'
     depends_on:
