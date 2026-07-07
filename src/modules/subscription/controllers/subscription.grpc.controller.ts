@@ -36,10 +36,11 @@ const withUnaryHandler = <TRequest, TResponse>(
   const { requestCounter, requestDurationHistogram } = getGrpcMetrics();
   return (call, callback) => {
     const stopTimer = requestDurationHistogram.startTimer();
-    const method = getCallPath(call);
+    const path = getCallPath(call);
 
-    const parts = method.split('/');
+    const parts = path.split('/');
     const service = parts[1] ?? 'unknown';
+    const method = parts[2] ?? 'unknown';
 
     handler(call)
       .then((result) => {
@@ -64,15 +65,6 @@ const withUnaryHandler = <TRequest, TResponse>(
         requestCounter.inc(labels);
         stopTimer(labels);
 
-        const safeRequest: Record<string, string> = {};
-        if (call.request && typeof call.request === 'object') {
-          for (const [k, v] of Object.entries(
-            call.request as Record<string, unknown>,
-          )) {
-            if (typeof v === 'string') safeRequest[k] = v;
-          }
-        }
-
         logger.error(
           {
             err: {
@@ -82,8 +74,8 @@ const withUnaryHandler = <TRequest, TResponse>(
             },
             grpcCode: statusCode,
             grpcDetails: grpcError.details,
-            path: method,
-            request: safeRequest,
+            path,
+            request: call.request,
           },
           'gRPC handler failure',
         );
