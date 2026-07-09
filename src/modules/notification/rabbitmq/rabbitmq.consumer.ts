@@ -2,7 +2,7 @@ import amqp from 'amqplib';
 import type { NotificationChannel } from '../delivery/notification-channel.interface';
 import {
   NOTIFICATION_QUEUE,
-  type NotificationMessage,
+  notificationMessageSchema,
 } from './rabbitmq.contract';
 import { logger } from '../../../core/logger';
 
@@ -18,7 +18,9 @@ const handleMessage = async (
   if (!msg) return;
 
   try {
-    const message = JSON.parse(msg.content.toString()) as NotificationMessage;
+    const message = notificationMessageSchema.parse(
+      JSON.parse(msg.content.toString()),
+    );
 
     if (message.type === 'confirmation') {
       await channel.sendConfirmation(
