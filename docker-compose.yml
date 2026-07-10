@@ -40,12 +40,11 @@ services:
       - "3001:3001"
 
   rabbitmq:
-    image: rabbitmq:3.13-management-alpine
+    image: rabbitmq:3.13-alpine
     container_name: github_notifier_rabbitmq
     restart: unless-stopped
     ports:
       - "5672:5672"
-      - "15672:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s

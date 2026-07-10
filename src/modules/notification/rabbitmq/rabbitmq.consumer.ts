@@ -3,12 +3,23 @@ import type { NotificationChannel } from '../delivery/notification-channel.inter
 import {
   NOTIFICATION_QUEUE,
   notificationMessageSchema,
+  setupNotificationTopology,
 } from './rabbitmq.contract';
 import { logger } from '../../../core/logger';
 
 interface ChannelFactory {
   createChannel(): Promise<amqp.Channel>;
 }
+
+const MAX_SEEN_IDS = 1000;
+const processedMessageIds = new Set<string>();
+
+const markProcessed = (messageId: string): void => {
+  processedMessageIds.add(messageId);
+  if (processedMessageIds.size > MAX_SEEN_IDS) {
+    processedMessageIds.delete(processedMessageIds.values().next().value!);
+  }
+};
 
 const handleMessage = async (
   mqChannel: amqp.Channel,
@@ -21,6 +32,17 @@ const handleMessage = async (
     const message = notificationMessageSchema.parse(
       JSON.parse(msg.content.toString()),
     );
+
+    const messageId =
+      typeof msg.properties.messageId === 'string'
+        ? msg.properties.messageId
+        : undefined;
+
+    if (messageId && processedMessageIds.has(messageId)) {
+      mqChannel.ack(msg);
+      logger.info({ type: message.type }, '[MQ] Duplicate message skipped');
+      return;
+    }
 
     if (message.type === 'confirmation') {
       await channel.sendConfirmation(
@@ -39,6 +61,7 @@ const handleMessage = async (
       );
     }
 
+    if (messageId) markProcessed(messageId);
     mqChannel.ack(msg);
     logger.info({ type: message.type }, '[MQ] Message processed');
   } catch (error) {
@@ -52,7 +75,7 @@ const setupChannel = async (
   channel: NotificationChannel,
 ): Promise<void> => {
   const mqChannel = await model.createChannel();
-  await mqChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
+  await setupNotificationTopology(mqChannel);
   await mqChannel.prefetch(1);
 
   await mqChannel.consume(NOTIFICATION_QUEUE, (msg) => {

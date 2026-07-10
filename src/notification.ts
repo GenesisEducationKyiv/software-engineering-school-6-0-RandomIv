@@ -51,13 +51,14 @@ const bootstrap = async (): Promise<void> => {
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
   app.use(createNotificationRouter(controller));
 
-  const server: Server = await new Promise((resolve) => {
+  const server: Server = await new Promise((resolve, reject) => {
     const s = app.listen(config.NOTIFICATION_PORT, () => {
       logger.info(
         `Notification service running on port ${config.NOTIFICATION_PORT}`,
       );
       resolve(s);
     });
+    s.once('error', reject);
   });
 
   const mqModel = await startMqConsumer(config.RABBITMQ_URL, channel);

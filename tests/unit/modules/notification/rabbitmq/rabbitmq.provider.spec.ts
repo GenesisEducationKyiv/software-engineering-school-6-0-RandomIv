@@ -8,7 +8,9 @@ describe('rabbitmq.provider', () => {
   const sendToQueue = jest.fn();
 
   const mqChannel = {
+    assertExchange: jest.fn().mockResolvedValue(undefined),
     assertQueue: jest.fn().mockResolvedValue(undefined),
+    bindQueue: jest.fn().mockResolvedValue(undefined),
     sendToQueue,
     on: jest.fn(),
   };
@@ -43,7 +45,10 @@ describe('rabbitmq.provider', () => {
           unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
         }),
       ),
-      { persistent: true },
+      {
+        persistent: true,
+        messageId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      },
     );
   });
 
@@ -70,7 +75,10 @@ describe('rabbitmq.provider', () => {
           unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
         }),
       ),
-      { persistent: true },
+      {
+        persistent: true,
+        messageId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      },
     );
   });
 

@@ -1,9 +1,11 @@
 import amqp from 'amqplib';
+import { randomUUID } from 'node:crypto';
 import type { NotificationPort } from '../../../common/interfaces/notification-port.interface';
 import { logger } from '../../../core/logger';
 import {
   NOTIFICATION_QUEUE,
   type NotificationMessage,
+  setupNotificationTopology,
 } from './rabbitmq.contract';
 
 export class MqNotificationProvider implements NotificationPort {
@@ -48,6 +50,7 @@ export class MqNotificationProvider implements NotificationPort {
     const ch = await this.getChannel();
     ch.sendToQueue(NOTIFICATION_QUEUE, Buffer.from(JSON.stringify(message)), {
       persistent: true,
+      messageId: randomUUID(),
     });
     logger.info({ type: message.type }, '[MQ] Message published');
   }
@@ -60,7 +63,7 @@ export class MqNotificationProvider implements NotificationPort {
     }
 
     const ch = await this.model.createChannel();
-    await ch.assertQueue(NOTIFICATION_QUEUE, { durable: true });
+    await setupNotificationTopology(ch);
     ch.on('error', () => {
       this.channel = null;
     });

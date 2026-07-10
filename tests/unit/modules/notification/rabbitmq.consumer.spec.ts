@@ -1,6 +1,10 @@
 import amqp from 'amqplib';
 import { startMqConsumer } from '../../../../src/modules/notification/rabbitmq/rabbitmq.consumer';
-import { NOTIFICATION_QUEUE } from '../../../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import {
+  NOTIFICATION_DLQ,
+  NOTIFICATION_DLX,
+  NOTIFICATION_QUEUE,
+} from '../../../../src/modules/notification/rabbitmq/rabbitmq.contract';
 import type { NotificationChannel } from '../../../../src/modules/notification/delivery/notification-channel.interface';
 import type { NotificationMessage } from '../../../../src/modules/notification/rabbitmq/rabbitmq.contract';
 
@@ -9,11 +13,12 @@ jest.mock('amqplib');
 const makeMessage = (
   payload: NotificationMessage,
   redelivered = false,
+  messageId?: string,
 ): amqp.ConsumeMessage =>
   ({
     content: Buffer.from(JSON.stringify(payload)),
     fields: { redelivered },
-    properties: {},
+    properties: { messageId },
   }) as unknown as amqp.ConsumeMessage;
 
 describe('rabbitmq.consumer', () => {
@@ -22,7 +27,9 @@ describe('rabbitmq.consumer', () => {
   const consume = jest.fn();
 
   const mqChannel = {
+    assertExchange: jest.fn().mockResolvedValue(undefined),
     assertQueue: jest.fn().mockResolvedValue(undefined),
+    bindQueue: jest.fn().mockResolvedValue(undefined),
     prefetch: jest.fn(),
     consume,
     ack,
@@ -51,11 +58,25 @@ describe('rabbitmq.consumer', () => {
     return handler;
   };
 
-  it('asserts durable queue and sets prefetch on startup', async () => {
+  it('asserts durable queue with a dead-letter exchange and sets prefetch on startup', async () => {
     await startMqConsumer('amqp://localhost', channel);
 
+    expect(mqChannel.assertExchange).toHaveBeenCalledWith(
+      NOTIFICATION_DLX,
+      'fanout',
+      { durable: true },
+    );
+    expect(mqChannel.assertQueue).toHaveBeenCalledWith(NOTIFICATION_DLQ, {
+      durable: true,
+    });
+    expect(mqChannel.bindQueue).toHaveBeenCalledWith(
+      NOTIFICATION_DLQ,
+      NOTIFICATION_DLX,
+      '',
+    );
     expect(mqChannel.assertQueue).toHaveBeenCalledWith(NOTIFICATION_QUEUE, {
       durable: true,
+      arguments: { 'x-dead-letter-exchange': NOTIFICATION_DLX },
     });
     expect(mqChannel.prefetch).toHaveBeenCalledWith(1);
   });
@@ -140,6 +161,24 @@ describe('rabbitmq.consumer', () => {
 
     expect(ack).not.toHaveBeenCalled();
     expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
+  it('skips redelivered duplicate by messageId without resending', async () => {
+    const handler = await setup();
+    const payload: NotificationMessage = {
+      type: 'confirmation',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: 'https://app.example.com/confirm/token',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    };
+
+    await handler(makeMessage(payload, false, 'msg-1'));
+    await handler(makeMessage(payload, true, 'msg-1'));
+
+    expect(channel.sendConfirmation).toHaveBeenCalledTimes(1);
+    expect(ack).toHaveBeenCalledTimes(2);
+    expect(nack).not.toHaveBeenCalled();
   });
 
   it('ignores null message', async () => {
