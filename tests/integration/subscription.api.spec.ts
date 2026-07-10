@@ -6,7 +6,10 @@ import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware'
 import { AppUrls } from '../../src/common/utils/url-builder.util';
 import { config } from '../../src/config';
 import prisma from '../../src/core/db/db';
-import { NOTIFICATION_QUEUE } from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import {
+  NOTIFICATION_QUEUE,
+  setupNotificationTopology,
+} from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
 import type { NotificationMessage } from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
 
 const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
@@ -46,7 +49,7 @@ describe('subscription routes integration', () => {
 
     mqConnection = await amqp.connect(config.RABBITMQ_URL);
     mqChannel = await mqConnection.createChannel();
-    await mqChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
+    await setupNotificationTopology(mqChannel);
   });
 
   afterAll(async () => {

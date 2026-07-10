@@ -1,7 +1,10 @@
 import amqp from 'amqplib';
 import { MqNotificationProvider } from '../../../src/modules/notification/rabbitmq/rabbitmq.provider';
 import { startMqConsumer } from '../../../src/modules/notification/rabbitmq/rabbitmq.consumer';
-import { NOTIFICATION_QUEUE } from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import {
+  NOTIFICATION_QUEUE,
+  setupNotificationTopology,
+} from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
 import type { NotificationChannel } from '../../../src/modules/notification/delivery/notification-channel.interface';
 
 const RABBITMQ_URL = process.env.RABBITMQ_URL ?? 'amqp://localhost:5673';
@@ -36,7 +39,7 @@ describe('notification MQ round-trip', () => {
   beforeAll(async () => {
     connection = await amqp.connect(RABBITMQ_URL);
     adminChannel = await connection.createChannel();
-    await adminChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
+    await setupNotificationTopology(adminChannel);
 
     await startMqConsumer(RABBITMQ_URL, channel);
   });
