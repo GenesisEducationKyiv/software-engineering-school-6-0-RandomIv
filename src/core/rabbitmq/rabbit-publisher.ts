@@ -1,5 +1,14 @@
 import amqp from 'amqplib';
+import { randomUUID } from 'node:crypto';
 import type { MessagePublisher } from '../../common/interfaces/message-publisher.interface';
+import {
+  assertDeadLetterQueue,
+  deadLetterTopologyFor,
+} from './rabbit-topology';
+
+export interface RabbitMessagePublisherOptions {
+  deadLetter?: boolean;
+}
 
 export class RabbitMessagePublisher<T> implements MessagePublisher<T> {
   private model: amqp.RecoveringChannelModel | null = null;
@@ -8,12 +17,14 @@ export class RabbitMessagePublisher<T> implements MessagePublisher<T> {
   constructor(
     private readonly rabbitmqUrl: string,
     private readonly queue: string,
+    private readonly options: RabbitMessagePublisherOptions = {},
   ) {}
 
   async publish(message: T): Promise<void> {
     const channel = await this.getChannel();
     channel.sendToQueue(this.queue, Buffer.from(JSON.stringify(message)), {
       persistent: true,
+      messageId: randomUUID(),
     });
   }
 
@@ -25,7 +36,12 @@ export class RabbitMessagePublisher<T> implements MessagePublisher<T> {
     }
 
     const channel = await this.model.createChannel();
-    await channel.assertQueue(this.queue, { durable: true });
+
+    if (this.options.deadLetter) {
+      await assertDeadLetterQueue(channel, deadLetterTopologyFor(this.queue));
+    } else {
+      await channel.assertQueue(this.queue, { durable: true });
+    }
 
     channel.on('error', () => {
       this.channel = null;

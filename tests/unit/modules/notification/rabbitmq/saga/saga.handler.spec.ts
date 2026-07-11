@@ -44,6 +44,22 @@ describe('saga.handler', () => {
       });
     });
 
+    it('does not throw and does not resend when only the confirmation-sent publish fails', async () => {
+      eventPublisher.publish.mockRejectedValue(new Error('broker unreachable'));
+
+      await expect(
+        handler.handle({
+          subscriptionId: 'sub-1',
+          to: 'user@example.com',
+          repo: 'owner/repo',
+          confirmationUrl: 'https://app.example.com/confirm/token',
+          unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+        }),
+      ).resolves.toBeUndefined();
+
+      expect(deliveryChannel.sendConfirmation).toHaveBeenCalledTimes(1);
+    });
+
     it('propagates the delivery error without publishing an event', async () => {
       deliveryChannel.sendConfirmation.mockRejectedValue(
         new Error('SMTP down'),

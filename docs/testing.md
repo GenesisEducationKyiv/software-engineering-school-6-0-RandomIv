@@ -70,10 +70,10 @@ E2E tests simulate complete real-world user journeys using Playwright and a mock
 This process builds the two production-ready Docker images that make up the system — the **API
 service** (`Dockerfile`) and the **notification microservice** (`Dockerfile.notification`) — and
 spins them up alongside isolated **PostgreSQL** (mapped to port `5434`), **Redis**, **RabbitMQ**
-(the transport connecting the two services) and **MailHog** containers inside a dedicated Docker
-network, then fires Playwright browser actions against the API service. A confirmation email sent
-during a test round-trips through the real saga: API service → RabbitMQ → notification
-microservice → MailHog.
+(which carries the confirmation saga; release notifications instead use a direct gRPC call) and
+**MailHog** containers inside a dedicated Docker network, then fires Playwright browser actions
+against the API service. A confirmation email sent during a test round-trips through the real saga:
+API service → RabbitMQ → notification microservice → MailHog.
 
 ```bash
 # Install required Playwright browser binaries and system dependencies

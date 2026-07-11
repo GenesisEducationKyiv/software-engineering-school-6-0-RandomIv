@@ -133,4 +133,30 @@ describe('notification gRPC round-trip', () => {
       code: grpc.status.INTERNAL,
     });
   });
+
+  it('returns INVALID_ARGUMENT for invalid release request', async () => {
+    await expect(
+      provider!.sendRelease('not-an-email', '', '', 'not-a-url', 'not-a-url'),
+    ).rejects.toMatchObject({
+      code: grpc.status.INVALID_ARGUMENT,
+    });
+
+    expect(channel.sendRelease).not.toHaveBeenCalled();
+  });
+
+  it('returns INTERNAL when channel throws for release', async () => {
+    channel.sendRelease.mockRejectedValueOnce(new Error('SMTP down'));
+
+    await expect(
+      provider!.sendRelease(
+        'user@example.com',
+        'owner/repo',
+        'v2.0.0',
+        'https://github.com/owner/repo/releases/tag/v2.0.0',
+        'https://app.example.com/unsubscribe/token',
+      ),
+    ).rejects.toMatchObject({
+      code: grpc.status.INTERNAL,
+    });
+  });
 });

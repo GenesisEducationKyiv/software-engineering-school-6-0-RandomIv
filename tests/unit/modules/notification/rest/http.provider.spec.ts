@@ -57,7 +57,7 @@ describe('rest/http.provider', () => {
   });
 
   it('propagates error when fetch fails', async () => {
-    fetchSpy.mockRejectedValueOnce(new Error('Network down'));
+    fetchSpy.mockRejectedValue(new Error('Network down'));
 
     await expect(
       provider.sendConfirmation(

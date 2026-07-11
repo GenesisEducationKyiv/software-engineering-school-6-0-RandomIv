@@ -24,6 +24,7 @@ import { NotificationMessageHandler } from './modules/notification/rabbitmq/rabb
 import { SendConfirmationCommandHandler } from './modules/notification/rabbitmq/saga/saga.handler';
 import {
   NOTIFICATION_QUEUE,
+  notificationMessageSchema,
   type NotificationMessage,
 } from './modules/notification/rabbitmq/rabbitmq.contract';
 import {
@@ -70,13 +71,14 @@ const bootstrap = async (): Promise<void> => {
   app.get('/health', (_req, res) => res.json({ status: 'ok' }));
   app.use(createNotificationRouter(controller));
 
-  const server: Server = await new Promise((resolve) => {
+  const server: Server = await new Promise((resolve, reject) => {
     const s = app.listen(config.NOTIFICATION_PORT, () => {
       logger.info(
         `Notification service running on port ${config.NOTIFICATION_PORT}`,
       );
       resolve(s);
     });
+    s.once('error', reject);
   });
 
   const grpcController = new NotificationGrpcController(channel);
@@ -91,6 +93,10 @@ const bootstrap = async (): Promise<void> => {
     config.RABBITMQ_URL,
     NOTIFICATION_QUEUE,
     new NotificationMessageHandler(channel),
+    {
+      deadLetter: true,
+      parseMessage: (raw) => notificationMessageSchema.parse(raw),
+    },
   );
   const mqModel = await notificationConsumer.start();
 
@@ -105,6 +111,7 @@ const bootstrap = async (): Promise<void> => {
       config.RABBITMQ_URL,
       SEND_CONFIRMATION_COMMAND_QUEUE,
       new SendConfirmationCommandHandler(channel, subscriptionEventPublisher),
+      { maxAttempts: 5 },
     );
   const confirmationCommandsModel = await confirmationCommandsConsumer.start();
 

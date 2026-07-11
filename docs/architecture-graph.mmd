@@ -69,7 +69,8 @@ subgraph 1M["grpc"]
 end
 subgraph 1S["rabbitmq"]
 1T["rabbit-consumer.ts"]
-1U["rabbit-publisher.ts"]
+1U["rabbit-topology.ts"]
+1V["rabbit-publisher.ts"]
 end
 end
 subgraph V["modules"]
@@ -78,102 +79,103 @@ subgraph X["controllers"]
 Y["subscription.rest.controller.ts"]
 11["subscription.mapper.ts"]
 12["subscription.web.controller.ts"]
-2F["subscription.grpc.controller.ts"]
+2I["subscription.grpc.controller.ts"]
 end
 10["subscription.schema.ts"]
-subgraph 2G["providers"]
-2H["github-repository.provider.ts"]
+subgraph 2J["providers"]
+2K["github-repository.provider.ts"]
 end
-subgraph 2I["saga"]
-2J["subscription-saga.orchestrator.ts"]
+subgraph 2L["saga"]
+2M["subscription-saga.orchestrator.ts"]
 end
-2K["subscription.repository.ts"]
-2L["subscription.service.ts"]
-subgraph 3I["entities"]
-3J["subscription-with-repository.entity.ts"]
-3K["subscription.entity.ts"]
+2N["subscription.repository.ts"]
+2O["subscription.service.ts"]
+subgraph 3K["entities"]
+3L["subscription-with-repository.entity.ts"]
+3M["subscription.entity.ts"]
 end
-subgraph 3L["interfaces"]
-3M["repository-provider.interface.ts"]
-3N["subscription-repository.interface.ts"]
+subgraph 3N["interfaces"]
+3O["repository-provider.interface.ts"]
+3P["subscription-repository.interface.ts"]
 end
 end
-subgraph 22["notification"]
-subgraph 23["rabbitmq"]
-24["rabbitmq.contract.ts"]
-25["rabbitmq.provider.ts"]
-subgraph 26["saga"]
-27["saga.contract.ts"]
-28["saga.provider.ts"]
-39["saga.handler.ts"]
-end
-38["rabbitmq.handler.ts"]
-end
-subgraph 2Z["delivery"]
-30["email.provider.ts"]
-31["notification-channel.interface.ts"]
-end
-subgraph 32["grpc"]
-33["grpc.provider.ts"]
+subgraph 24["notification"]
+subgraph 25["grpc"]
+26["grpc.provider.ts"]
 35["grpc.server.ts"]
 36["notification.grpc.controller.ts"]
 end
+subgraph 28["rabbitmq"]
+subgraph 29["saga"]
+2A["saga.contract.ts"]
+2B["saga.provider.ts"]
+3B["saga.handler.ts"]
+end
+38["rabbitmq.contract.ts"]
+39["rabbitmq.handler.ts"]
+3A["rabbitmq.provider.ts"]
+end
+subgraph 32["delivery"]
+33["email.provider.ts"]
+34["notification-channel.interface.ts"]
+end
 37["notification.schema.ts"]
-subgraph 3A["rest"]
-3B["http.provider.ts"]
-3C["rest.controller.ts"]
+subgraph 3C["rest"]
+3D["http.provider.ts"]
+3E["rest.controller.ts"]
 end
 end
-subgraph 29["repository"]
-2A["repository.repository.ts"]
-subgraph 3D["entities"]
-3E["repository-with-subscription.entity.ts"]
-3F["repository.entity.ts"]
+subgraph 2C["repository"]
+2D["repository.repository.ts"]
+subgraph 3F["entities"]
+3G["repository-with-subscription.entity.ts"]
+3H["repository.entity.ts"]
 end
 end
-subgraph 2B["scanner"]
-subgraph 2C["providers"]
-2D["github-release.provider.ts"]
+subgraph 2E["scanner"]
+subgraph 2F["providers"]
+2G["github-release.provider.ts"]
 end
-2E["scanner.service.ts"]
-subgraph 3G["interfaces"]
-3H["release-provider.interface.ts"]
+2H["scanner.service.ts"]
+subgraph 3I["interfaces"]
+3J["release-provider.interface.ts"]
 end
 end
 end
 subgraph 15["views"]
 16["html.template.ts"]
 end
-1V["dependency-container.ts"]
-subgraph 1W["integrations"]
-subgraph 1X["github"]
-1Y["cached-github.client.ts"]
-1Z["github.service.ts"]
-20["github.schema.ts"]
-21["http-github.client.ts"]
-subgraph 2W["interfaces"]
-2X["github-client.interface.ts"]
-2Y["github-release.interface.ts"]
+1X["dependency-container.ts"]
+subgraph 1Y["integrations"]
+subgraph 1Z["github"]
+20["cached-github.client.ts"]
+21["github.service.ts"]
+22["github.schema.ts"]
+23["http-github.client.ts"]
+subgraph 2Z["interfaces"]
+30["github-client.interface.ts"]
+31["github-release.interface.ts"]
 end
 end
-subgraph 2P["email"]
-2Q["email-transport.interface.ts"]
-2R["email.service.ts"]
-subgraph 2S["templates"]
-2T["confirmation.template.ts"]
-2U["release.template.ts"]
+subgraph 2S["email"]
+2T["email-transport.interface.ts"]
+2U["email.service.ts"]
+subgraph 2V["templates"]
+2W["confirmation.template.ts"]
+2X["release.template.ts"]
 end
-2V["nodemailer-email.provider.ts"]
+2Y["nodemailer-email.provider.ts"]
 end
 end
-subgraph 2M["schedulers"]
-2N["release-check.scheduler.ts"]
+subgraph 2P["schedulers"]
+2Q["release-check.scheduler.ts"]
 end
-2O["index.ts"]
-3O["notification.ts"]
+2R["index.ts"]
+3Q["notification.ts"]
 end
 2["path"]
-34["util"]
+1W["crypto"]
+27["util"]
 1-->5
 1-->A
 1-->O
@@ -194,6 +196,7 @@ C-->I
 C-->J
 C-->K
 C-->L
+K-->L
 N-->5
 O-->C
 O-->R
@@ -225,81 +228,85 @@ Y-->11
 1Q-->U
 1Q-->1N
 1T-->R
-1V-->C
-1V-->1G
-1V-->1L
+1T-->1U
 1V-->1U
-1V-->1Y
-1V-->1Z
-1V-->21
-1V-->24
-1V-->25
-1V-->27
-1V-->28
-1V-->2A
-1V-->2D
-1V-->2E
-1V-->2F
-1V-->Y
-1V-->12
-1V-->2H
-1V-->2J
-1V-->2K
-1V-->2L
-1V-->2N
-1Y-->C
-1Y-->R
-1Z-->5
-1Z-->20
-21-->7
+1V-->1W
+1X-->C
+1X-->1G
+1X-->1L
+1X-->1V
+1X-->20
+1X-->21
+1X-->23
+1X-->26
+1X-->2A
+1X-->2B
+1X-->2D
+1X-->2G
+1X-->2H
+1X-->2I
+1X-->Y
+1X-->12
+1X-->2K
+1X-->2M
+1X-->2N
+1X-->2O
+1X-->2Q
+20-->C
+20-->R
 21-->5
-21-->1C
-21-->C
-2E-->5
-2E-->1D
-2E-->R
-2F-->Z
-2F-->N
-2F-->1Q
-2F-->10
-2F-->11
-2J-->R
-2K-->5
-2L-->5
-2L-->1D
-2N-->R
-2O-->1
-2O-->C
-2O-->1O
-2O-->R
-2O-->1T
-2O-->1V
-2O-->27
-2R-->7
-2R-->5
+21-->22
+23-->7
+23-->5
+23-->1C
+23-->C
+26-->27
+2H-->5
+2H-->1D
+2H-->R
+2I-->Z
+2I-->N
+2I-->1Q
+2I-->10
+2I-->11
+2M-->R
+2N-->5
+2O-->5
+2O-->1D
+2Q-->R
+2R-->1
+2R-->C
+2R-->1O
 2R-->R
-2R-->2T
-2R-->2U
-33-->34
+2R-->1T
+2R-->1X
+2R-->2A
+2U-->7
+2U-->5
+2U-->R
+2U-->2W
+2U-->2X
 35-->R
 36-->1Q
 36-->37
-38-->R
+38-->37
 39-->R
-3B-->1C
-3C-->37
-3O-->1E
-3O-->K
-3O-->R
-3O-->1T
-3O-->1U
-3O-->2R
-3O-->2V
-3O-->30
-3O-->35
-3O-->36
-3O-->24
-3O-->38
-3O-->27
-3O-->39
-3O-->3C
+3B-->R
+3D-->5
+3D-->1C
+3E-->37
+3Q-->1E
+3Q-->K
+3Q-->R
+3Q-->1T
+3Q-->1V
+3Q-->2U
+3Q-->2Y
+3Q-->33
+3Q-->35
+3Q-->36
+3Q-->38
+3Q-->39
+3Q-->2A
+3Q-->3B
+3Q-->3E

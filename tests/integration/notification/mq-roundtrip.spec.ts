@@ -1,9 +1,16 @@
 import amqp from 'amqplib';
 import { RabbitConsumer } from '../../../src/core/rabbitmq/rabbit-consumer';
 import { RabbitMessagePublisher } from '../../../src/core/rabbitmq/rabbit-publisher';
+import {
+  assertDeadLetterQueue,
+  deadLetterTopologyFor,
+} from '../../../src/core/rabbitmq/rabbit-topology';
 import { RabbitMqProvider } from '../../../src/modules/notification/rabbitmq/rabbitmq.provider';
 import { NotificationMessageHandler } from '../../../src/modules/notification/rabbitmq/rabbitmq.handler';
-import { NOTIFICATION_QUEUE } from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import {
+  NOTIFICATION_QUEUE,
+  notificationMessageSchema,
+} from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
 import type { NotificationMessage } from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
 import type { NotificationChannel } from '../../../src/modules/notification/delivery/notification-channel.interface';
 
@@ -41,18 +48,26 @@ describe('notification MQ round-trip', () => {
   beforeAll(async () => {
     connection = await amqp.connect(RABBITMQ_URL);
     adminChannel = await connection.createChannel();
-    await adminChannel.assertQueue(NOTIFICATION_QUEUE, { durable: true });
+    await assertDeadLetterQueue(
+      adminChannel,
+      deadLetterTopologyFor(NOTIFICATION_QUEUE),
+    );
 
     const consumer = new RabbitConsumer<NotificationMessage>(
       RABBITMQ_URL,
       NOTIFICATION_QUEUE,
       new NotificationMessageHandler(channel),
+      {
+        deadLetter: true,
+        parseMessage: (raw) => notificationMessageSchema.parse(raw),
+      },
     );
     consumerModel = await consumer.start();
 
     const publisher = new RabbitMessagePublisher<NotificationMessage>(
       RABBITMQ_URL,
       NOTIFICATION_QUEUE,
+      { deadLetter: true },
     );
     provider = new RabbitMqProvider(publisher);
   });
@@ -63,7 +78,10 @@ describe('notification MQ round-trip', () => {
   });
 
   afterAll(async () => {
+    const topology = deadLetterTopologyFor(NOTIFICATION_QUEUE);
     await adminChannel.deleteQueue(NOTIFICATION_QUEUE);
+    await adminChannel.deleteQueue(topology.dlq);
+    await adminChannel.deleteExchange(topology.dlxExchange);
     await connection.close();
     await consumerModel.close();
   });

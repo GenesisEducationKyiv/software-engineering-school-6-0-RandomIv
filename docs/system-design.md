@@ -43,9 +43,10 @@ This document covers:
 ### Architecture Style
 Two cooperating services, not a single process: an **API service** (HTTP + gRPC + in-process cron
 scheduler) that owns subscriptions and release detection, and a **notification microservice** that
-owns email delivery. They communicate asynchronously over RabbitMQ — a command/event saga for
-subscription confirmations (with compensation on delivery failure) and a plain queue for release
-fan-out. See `docs/architecture.md` for the module-level layer diagram.
+owns email delivery. They talk over two channels, each chosen for its flow: subscription
+**confirmations** go through a RabbitMQ command/event saga with compensation on delivery failure,
+while **release notifications** are a synchronous gRPC call from the scanner into the notification
+service. See `docs/architecture.md` for the module-level layer diagram.
 
 ### Technology Stack
 
@@ -53,8 +54,8 @@ fan-out. See `docs/architecture.md` for the module-level layer diagram.
 | --- | --- |
 | Runtime | Node.js + TypeScript |
 | HTTP Transport | Express framework |
-| RPC Transport | gRPC |
-| Message Broker | RabbitMQ (command/event queues, saga compensation) |
+| RPC Transport | gRPC (client-facing subscription API, and API-to-notification release calls) |
+| Message Broker | RabbitMQ (confirmation saga: command + event queues, compensation) |
 | Validation | Zod |
 | Persistence | ORM with relational database |
 | Task Scheduling | In-process scheduler (API service only) |
@@ -73,10 +74,12 @@ graph TD
     API -->|Optional| CACHE[(Cache Layer)]
     API -->|REST API| GH[GitHub]
 
-    API -->|"publish: confirmation command,<br/>release messages"| MQ[(RabbitMQ)]
-    MQ -->|consume| NOTIF[Notification Microservice]
+    API -->|"publish: SendConfirmationCommand"| MQ[(RabbitMQ)]
+    MQ -->|consume command| NOTIF[Notification Microservice]
     NOTIF -->|"publish: confirmation-sent /<br/>confirmation-failed"| MQ
     MQ -->|consume: compensate on failure| API
+
+    API -->|"gRPC: SendRelease (synchronous)"| NOTIF
 
     NOTIF -->|SMTP| EMAIL[Email Provider]
     EMAIL -->|Emails| U
@@ -92,12 +95,13 @@ which lives in `modules/subscription` on the API service side.
 - `modules/subscription` — subscription business logic (REST/gRPC/web controllers), plus
   `saga/subscription-saga.orchestrator.ts` which compensates (deletes the subscription) when the
   notification microservice reports a failed confirmation
-- `modules/notification` — notification delivery across three transports: `rest/`, `grpc/`,
-  `rabbitmq/` (incl. `saga/` — the command handler that sends confirmation emails and reports
-  success/failure back), plus the `delivery/` email channel
+- `modules/notification` — notification delivery across three transports: `grpc/` (the active
+  release path — the API service calls `SendRelease` here), `rabbitmq/` (incl. `saga/` — the
+  command handler that sends confirmation emails and reports success/failure back), and `rest/`
+  (a preparatory HTTP transport, currently unwired), plus the `delivery/` email channel
 - `modules/repository` — repository persistence
-- `modules/scanner` — release detection and dispatch (publishes release messages to RabbitMQ; the
-  notification microservice consumes them and sends the emails)
+- `modules/scanner` — release detection and dispatch (calls the notification microservice over
+  gRPC via `GrpcNotificationProvider`; one synchronous call per subscriber)
 - `core` — generic infrastructure: `db`, `cache`, `logger`, `grpc` server, `rabbitmq` transport,
   `metrics`
 - `integrations` — outbound adapters to third parties: `github`, `email`
@@ -130,15 +134,27 @@ rules.
 - `GET /web/confirm/:token`
 - `GET /web/unsubscribe/:token`
 
-### gRPC Service
-Service: `release_notifier.ReleaseNotifier`
+### gRPC Services
+
+**Client-facing** — `release_notifier.ReleaseNotifier` (API service):
 
 - `Subscribe`
 - `Confirm`
 - `Unsubscribe`
 - `GetSubscriptions`
 
-All gRPC methods require metadata key `x-api-key`.
+All of these methods require metadata key `x-api-key`.
+
+**Internal** — `notification.v1.NotificationService` (notification microservice), called by the API
+service, not by end clients:
+
+- `SendConfirmation`
+- `SendRelease` — the active release-notification path (see §6.2); `SendConfirmation` is defined but
+  currently unused, since confirmations flow through the RabbitMQ saga instead.
+
+The notification microservice also exposes `GET /health` and internal REST routes
+(`POST /send-confirmation`, `POST /send-release`) mirroring the gRPC methods; the REST transport is
+preparatory and currently unwired.
 
 ---
 
@@ -187,8 +203,8 @@ sequenceDiagram
     ExternalSvc-->>SVC: Exists / Not Found
     SVC->>DB: Create unconfirmed subscription
     SVC->>MQ: Publish SendConfirmationCommand
-    Note over SVC,MQ: If this publish itself throws (broker down),<br/>SVC deletes the subscription synchronously and returns an error
-    SVC-->>User: 201 Created
+    Note over SVC,MQ: If this publish itself throws (broker down),<br/>SVC deletes the subscription synchronously and rethrows
+    SVC-->>User: 200 OK (subscription pending confirmation)
 
     MQ->>Notif: Deliver SendConfirmationCommand
     Notif->>Provider: Send confirmation email
@@ -209,11 +225,12 @@ sequenceDiagram
 
 ### 6.2 Release Detection and Notification Flow
 
-Unlike the confirmation flow, release notifications have no saga or compensation: the scanner
-publishes one message per subscriber to a plain RabbitMQ queue and only knows whether the *publish*
-succeeded, not whether the notification microservice actually delivered the email. A publish
-failure is treated the same as a delivery failure — `lastSeenTag` is left unchanged so the release
-is retried on the next cron cycle.
+Unlike the confirmation flow, release notifications use a **synchronous gRPC call** rather than the
+broker: the scanner calls `SendRelease` on the notification microservice once per subscriber and
+waits for the result, so it learns the actual delivery outcome (not just an enqueue). Each call
+carries a client-side deadline. There is no saga or compensation here — `lastSeenTag` is advanced
+only when every call for a repository succeeds; if any call fails, the tag is left unchanged and
+the whole repository is retried on the next cron cycle (at-least-once delivery).
 
 ```mermaid
 sequenceDiagram
@@ -221,7 +238,6 @@ sequenceDiagram
     participant Scanner as Release Scanner
     participant DB as Database
     participant ExternalSvc as GitHub
-    participant MQ as RabbitMQ
     participant Notif as Notification Microservice
     participant Provider as Email Provider
 
@@ -236,16 +252,16 @@ sequenceDiagram
             alt New release detected
                 Scanner->>DB: Load confirmed subscribers
                 loop For each subscriber
-                    Scanner->>MQ: Publish release message
-                    MQ-->>Scanner: Published / Publish failed
-                    MQ->>Notif: Deliver release message (async)
+                    Scanner->>Notif: gRPC SendRelease (with deadline)
                     Notif->>Provider: Send notification email
+                    Provider-->>Notif: Sent / Failed
+                    Notif-->>Scanner: OK / gRPC error
                 end
 
-                alt All publishes succeeded
+                alt All calls succeeded
                     Scanner->>DB: Update last seen release
-                else Any publish failed
-                    Scanner-->>Scanner: Retry next cycle
+                else Any call failed
+                    Scanner-->>Scanner: Leave tag unchanged, retry next cycle
                 end
             end
         end
@@ -346,7 +362,7 @@ shared dependencies:
 
 - The API service (`app`) and the notification microservice (`notification`), each built from its
   own Dockerfile
-- RabbitMQ — the transport connecting the two services
+- RabbitMQ — carries the confirmation saga between the two services (releases go over gRPC directly)
 - The relational database
 - The optional cache system
 - An observability stack (Elasticsearch, Kibana, Filebeat, Prometheus, Grafana) for logs and metrics
@@ -361,8 +377,9 @@ API service initialization sequence:
 Notification microservice initialization sequence:
 
 1. Load and validate environment configuration.
-2. Initialize the HTTP and gRPC servers.
-3. Start the RabbitMQ consumers (plain notification queue and the confirmation-command queue).
+2. Initialize the HTTP and gRPC servers (the gRPC server serves the API service's `SendRelease` calls).
+3. Start the RabbitMQ consumer for the confirmation-command queue (a plain notification-queue
+   consumer is also started but is currently unused, since the API service no longer publishes to it).
 
 ---
 
@@ -380,7 +397,9 @@ Notification microservice initialization sequence:
 ### Future Evolution Paths
 
 - Add distributed job coordination for horizontal scaling scenarios.
-- Extend saga-style compensation to release notifications, which are currently fire-and-forget
-  once published to RabbitMQ (see §6.2).
-- Implement explicit retry policies with backoff and attempt tracking (the confirmation saga
-  currently retries on redelivery without a bounded attempt counter).
+- Add resilience to the synchronous gRPC release path (see §6.2): today a failed call just leaves
+  `lastSeenTag` unchanged for a whole-repository retry next cycle, with no per-subscriber queue or
+  backoff.
+- Add backoff to the confirmation saga retries: the consumer already bounds attempts via a
+  `maxAttempts` counter (`x-attempt` header), but re-enqueues immediately with no delay between
+  attempts.
