@@ -16,28 +16,45 @@ describe('rabbit-consumer', () => {
   const nack = jest.fn();
   const prefetch = jest.fn();
   const assertQueue = jest.fn();
+  const assertExchange = jest.fn();
+  const bindQueue = jest.fn();
   const consume = jest.fn();
   const createChannel = jest.fn();
   const modelOn = jest.fn();
 
-  const channel = { assertQueue, prefetch, consume, ack, nack };
+  const channel = {
+    assertQueue,
+    assertExchange,
+    bindQueue,
+    prefetch,
+    consume,
+    ack,
+    nack,
+  };
   const model = { createChannel, on: modelOn };
 
   let handler: jest.Mocked<MessageHandler<Payload>>;
   let consumer: RabbitConsumer<Payload>;
 
-  const message = (payload: unknown, redelivered = false) => ({
+  const message = (
+    payload: unknown,
+    redelivered = false,
+    messageId?: string,
+  ) => ({
     content: Buffer.from(JSON.stringify(payload)),
     fields: { redelivered },
+    properties: { messageId },
   });
 
-  const getConsumeCallback = () =>
-    consume.mock.calls[0]![1] as (
+  const getConsumeCallback = (callIndex = consume.mock.calls.length - 1) =>
+    consume.mock.calls[callIndex]![1] as (
       msg: ReturnType<typeof message> | null,
     ) => void;
 
   beforeEach(async () => {
     assertQueue.mockResolvedValue(undefined);
+    assertExchange.mockResolvedValue(undefined);
+    bindQueue.mockResolvedValue(undefined);
     prefetch.mockResolvedValue(undefined);
     consume.mockResolvedValue(undefined);
     createChannel.mockResolvedValue(channel);
@@ -134,5 +151,112 @@ describe('rabbit-consumer', () => {
     await onConnect(model);
 
     expect(createChannel).toHaveBeenCalledTimes(1);
+  });
+
+  it('skips a duplicate message by messageId without invoking the handler again', async () => {
+    handler.handle.mockResolvedValue(undefined);
+
+    getConsumeCallback()(message({ value: 'ok' }, false, 'msg-1'));
+    await flushPromises();
+    getConsumeCallback()(message({ value: 'ok' }, true, 'msg-1'));
+    await flushPromises();
+
+    expect(handler.handle).toHaveBeenCalledTimes(1);
+    expect(ack).toHaveBeenCalledTimes(2);
+    expect(nack).not.toHaveBeenCalled();
+  });
+
+  it('parses the raw message with a custom parseMessage before handling', async () => {
+    const parseMessage = jest.fn((raw: unknown) => raw as Payload);
+    const parsingHandler: jest.Mocked<MessageHandler<Payload>> = {
+      handle: jest.fn().mockResolvedValue(undefined),
+      onFailureExhausted: jest.fn(),
+    };
+    const parsingConsumer = new RabbitConsumer(
+      'amqp://localhost',
+      'my-queue',
+      parsingHandler,
+      { parseMessage },
+    );
+    await parsingConsumer.start();
+
+    getConsumeCallback()(message({ value: 'ok' }));
+    await flushPromises();
+
+    expect(parseMessage).toHaveBeenCalledWith({ value: 'ok' });
+    expect(parsingHandler.handle).toHaveBeenCalledWith({ value: 'ok' });
+  });
+
+  it('requeues once when parseMessage throws on first delivery', async () => {
+    const parseMessage = jest.fn(() => {
+      throw new Error('invalid shape');
+    });
+    const parsingHandler: jest.Mocked<MessageHandler<Payload>> = {
+      handle: jest.fn(),
+      onFailureExhausted: jest.fn(),
+    };
+    const parsingConsumer = new RabbitConsumer(
+      'amqp://localhost',
+      'my-queue',
+      parsingHandler,
+      { parseMessage },
+    );
+    await parsingConsumer.start();
+
+    const msg = message({ value: 'bad' });
+    getConsumeCallback()(msg);
+    await flushPromises();
+
+    expect(parsingHandler.handle).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledWith(msg, false, true);
+  });
+
+  describe('with deadLetter enabled', () => {
+    let dlqHandler: jest.Mocked<MessageHandler<Payload>>;
+
+    beforeEach(async () => {
+      dlqHandler = { handle: jest.fn(), onFailureExhausted: jest.fn() };
+      const dlqConsumer = new RabbitConsumer(
+        'amqp://localhost',
+        'my-queue',
+        dlqHandler,
+        { deadLetter: true },
+      );
+      await dlqConsumer.start();
+    });
+
+    it('asserts a dead-letter exchange and binds the DLQ before the main queue', () => {
+      expect(assertExchange).toHaveBeenCalledWith('my-queue.dlx', 'fanout', {
+        durable: true,
+      });
+      expect(assertQueue).toHaveBeenCalledWith('my-queue.dlq', {
+        durable: true,
+      });
+      expect(bindQueue).toHaveBeenCalledWith(
+        'my-queue.dlq',
+        'my-queue.dlx',
+        '',
+      );
+      expect(assertQueue).toHaveBeenCalledWith('my-queue', {
+        durable: true,
+        arguments: { 'x-dead-letter-exchange': 'my-queue.dlx' },
+      });
+    });
+
+    it('nacks without requeue (routing to the DLQ) once retries are exhausted', async () => {
+      const error = new Error('boom');
+      dlqHandler.handle.mockRejectedValue(error);
+
+      const msg = message({ value: 'poison' }, true);
+      getConsumeCallback()(msg);
+      await flushPromises();
+
+      expect(dlqHandler.onFailureExhausted).toHaveBeenCalledWith(
+        { value: 'poison' },
+        error,
+      );
+      expect(nack).toHaveBeenCalledWith(msg, false, false);
+      expect(ack).not.toHaveBeenCalled();
+    });
   });
 });
