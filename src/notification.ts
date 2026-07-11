@@ -97,6 +97,7 @@ const bootstrap = async (): Promise<void> => {
       config.RABBITMQ_URL,
       SEND_CONFIRMATION_COMMAND_QUEUE,
       new SendConfirmationCommandHandler(channel, subscriptionEventPublisher),
+      { maxAttempts: 5 },
     );
   const confirmationCommandsModel = await confirmationCommandsConsumer.start();
 

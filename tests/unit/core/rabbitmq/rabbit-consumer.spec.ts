@@ -19,6 +19,7 @@ describe('rabbit-consumer', () => {
   const assertExchange = jest.fn();
   const bindQueue = jest.fn();
   const consume = jest.fn();
+  const sendToQueue = jest.fn();
   const createChannel = jest.fn();
   const modelOn = jest.fn();
 
@@ -28,6 +29,7 @@ describe('rabbit-consumer', () => {
     bindQueue,
     prefetch,
     consume,
+    sendToQueue,
     ack,
     nack,
   };
@@ -40,10 +42,14 @@ describe('rabbit-consumer', () => {
     payload: unknown,
     redelivered = false,
     messageId?: string,
+    attempt?: number,
   ) => ({
     content: Buffer.from(JSON.stringify(payload)),
     fields: { redelivered },
-    properties: { messageId },
+    properties: {
+      messageId,
+      headers: attempt ? { 'x-attempt': attempt } : undefined,
+    },
   });
 
   const getConsumeCallback = (callIndex = consume.mock.calls.length - 1) =>
@@ -106,23 +112,28 @@ describe('rabbit-consumer', () => {
     expect(nack).toHaveBeenCalledWith(malformed, false, false);
   });
 
-  it('requeues once when the handler fails on first delivery', async () => {
+  it('acks and republishes with an incremented attempt header when the handler fails and attempts remain', async () => {
     handler.handle.mockRejectedValue(new Error('boom'));
 
     const msg = message({ value: 'retry-me' });
     getConsumeCallback()(msg);
     await flushPromises();
 
-    expect(nack).toHaveBeenCalledWith(msg, false, true);
+    expect(ack).toHaveBeenCalledWith(msg);
+    expect(sendToQueue).toHaveBeenCalledWith('my-queue', msg.content, {
+      persistent: true,
+      messageId: undefined,
+      headers: { 'x-attempt': 2 },
+    });
     expect(handler.onFailureExhausted).not.toHaveBeenCalled();
-    expect(ack).not.toHaveBeenCalled();
+    expect(nack).not.toHaveBeenCalled();
   });
 
-  it('calls onFailureExhausted and acks after the handler fails on a redelivered message', async () => {
+  it('calls onFailureExhausted and acks after the handler fails on the last allowed attempt', async () => {
     const error = new Error('boom');
     handler.handle.mockRejectedValue(error);
 
-    const msg = message({ value: 'poison' }, true);
+    const msg = message({ value: 'poison' }, true, undefined, 2);
     getConsumeCallback()(msg);
     await flushPromises();
 
@@ -131,6 +142,45 @@ describe('rabbit-consumer', () => {
       error,
     );
     expect(ack).toHaveBeenCalledWith(msg);
+    expect(sendToQueue).not.toHaveBeenCalled();
+  });
+
+  it('honors a custom maxAttempts before giving up', async () => {
+    const attemptsHandler: jest.Mocked<MessageHandler<Payload>> = {
+      handle: jest.fn().mockRejectedValue(new Error('boom')),
+      onFailureExhausted: jest.fn(),
+    };
+    const attemptsConsumer = new RabbitConsumer(
+      'amqp://localhost',
+      'my-queue',
+      attemptsHandler,
+      { maxAttempts: 3 },
+    );
+    await attemptsConsumer.start();
+
+    getConsumeCallback()(message({ value: 'retry-me' }, false, undefined, 2));
+    await flushPromises();
+
+    expect(sendToQueue).toHaveBeenCalledWith('my-queue', expect.anything(), {
+      persistent: true,
+      messageId: undefined,
+      headers: { 'x-attempt': 3 },
+    });
+    expect(attemptsHandler.onFailureExhausted).not.toHaveBeenCalled();
+  });
+
+  it('nacks with requeue instead of leaving the message unacked when onFailureExhausted itself fails', async () => {
+    handler.handle.mockRejectedValue(new Error('boom'));
+    (handler.onFailureExhausted as jest.Mock).mockRejectedValue(
+      new Error('broker unreachable'),
+    );
+
+    const msg = message({ value: 'poison' }, true, undefined, 2);
+    getConsumeCallback()(msg);
+    await flushPromises();
+
+    expect(nack).toHaveBeenCalledWith(msg, false, true);
+    expect(ack).not.toHaveBeenCalled();
   });
 
   it('ignores a null message', async () => {
@@ -247,7 +297,7 @@ describe('rabbit-consumer', () => {
       const error = new Error('boom');
       dlqHandler.handle.mockRejectedValue(error);
 
-      const msg = message({ value: 'poison' }, true);
+      const msg = message({ value: 'poison' }, true, undefined, 2);
       getConsumeCallback()(msg);
       await flushPromises();
 

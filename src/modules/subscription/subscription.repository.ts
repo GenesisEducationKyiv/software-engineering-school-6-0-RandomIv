@@ -53,7 +53,7 @@ export class PrismaSubscriptionRepository implements SubscriptionRepositoryInter
 
   async deleteById(id: string): Promise<number> {
     const result = await this.prismaClient.subscription.deleteMany({
-      where: { id },
+      where: { id, confirmed: false },
     });
     return result.count;
   }

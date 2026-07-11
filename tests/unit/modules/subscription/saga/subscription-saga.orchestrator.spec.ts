@@ -19,11 +19,27 @@ describe('subscription-saga.orchestrator', () => {
   });
 
   it('compensates by deleting the subscription on confirmation-failed', async () => {
+    subscriptionRepository.deleteById.mockResolvedValue(1);
+
     await orchestrator.handle({
       type: 'confirmation-failed',
       subscriptionId: 'sub-1',
       reason: 'SMTP error',
     });
+
+    expect(subscriptionRepository.deleteById).toHaveBeenCalledWith('sub-1');
+  });
+
+  it('skips compensation without error when the subscription was already confirmed or removed', async () => {
+    subscriptionRepository.deleteById.mockResolvedValue(0);
+
+    await expect(
+      orchestrator.handle({
+        type: 'confirmation-failed',
+        subscriptionId: 'sub-1',
+        reason: 'SMTP error',
+      }),
+    ).resolves.toBeUndefined();
 
     expect(subscriptionRepository.deleteById).toHaveBeenCalledWith('sub-1');
   });

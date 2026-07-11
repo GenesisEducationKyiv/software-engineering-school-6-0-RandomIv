@@ -13,9 +13,12 @@ interface ChannelFactory {
 export interface RabbitConsumerOptions<T> {
   deadLetter?: boolean;
   parseMessage?: (raw: unknown) => T;
+  maxAttempts?: number;
 }
 
 const MAX_SEEN_MESSAGE_IDS = 1000;
+const DEFAULT_MAX_ATTEMPTS = 2;
+const ATTEMPT_HEADER = 'x-attempt';
 
 export class RabbitConsumer<T> {
   private readonly processedMessageIds = new Set<string>();
@@ -67,6 +70,11 @@ export class RabbitConsumer<T> {
     }
   }
 
+  private getAttempt(msg: amqp.ConsumeMessage): number {
+    const value: unknown = msg.properties?.headers?.[ATTEMPT_HEADER];
+    return typeof value === 'number' ? value : 1;
+  }
+
   private async handleMessage(
     channel: amqp.Channel,
     msg: amqp.ConsumeMessage | null,
@@ -111,12 +119,32 @@ export class RabbitConsumer<T> {
         `[MQ Infrastructure] Handler failed for message from "${this.queue}"`,
       );
 
-      if (!msg.fields.redelivered) {
-        channel.nack(msg, false, true);
+      const attempt = this.getAttempt(msg);
+      const maxAttempts = this.options.maxAttempts ?? DEFAULT_MAX_ATTEMPTS;
+
+      if (attempt < maxAttempts) {
+        channel.ack(msg);
+        channel.sendToQueue(this.queue, msg.content, {
+          persistent: true,
+          ...(messageId ? { messageId } : {}),
+          headers: {
+            ...msg.properties?.headers,
+            [ATTEMPT_HEADER]: attempt + 1,
+          },
+        });
         return;
       }
 
-      await this.handler.onFailureExhausted?.(payload, error);
+      try {
+        await this.handler.onFailureExhausted?.(payload, error);
+      } catch (compensationError) {
+        logger.error(
+          { err: compensationError },
+          `[MQ Infrastructure] onFailureExhausted failed for message from "${this.queue}", will retry`,
+        );
+        channel.nack(msg, false, true);
+        return;
+      }
 
       if (this.options.deadLetter) {
         channel.nack(msg, false, false);

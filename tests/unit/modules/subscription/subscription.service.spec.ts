@@ -109,7 +109,7 @@ describe('subscription.service', () => {
       ).rejects.toBeInstanceOf(NotFoundError);
     });
 
-    it('propagates the raw error from notificationPort without wrapping or rolling back', async () => {
+    it('propagates the raw error from notificationPort and rolls back the subscription', async () => {
       repositoryProvider.checkRepoExists.mockResolvedValue(true);
       repositoryRepository.getOrCreateRepository.mockResolvedValue(
         repositoryRecord,
@@ -124,7 +124,9 @@ describe('subscription.service', () => {
         service.subscribe({ email: 'test@example.com', repo: 'owner/repo' }),
       ).rejects.toBe(notificationError);
 
-      expect(subscriptionRepository.deleteById).not.toHaveBeenCalled();
+      expect(subscriptionRepository.deleteById).toHaveBeenCalledWith(
+        subscriptionRecord.id,
+      );
     });
 
     it('propagates ConflictError from repository', async () => {
