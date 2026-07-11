@@ -14,7 +14,15 @@ export class SubscriptionSagaOrchestrator implements MessageHandler<Subscription
         { subscriptionId: event.subscriptionId, reason: event.reason },
         '[Saga Orchestrator] Asynchronous rollback triggered due to notification failure',
       );
-      await this.subscriptionRepository.deleteById(event.subscriptionId);
+      const deleted = await this.subscriptionRepository.deleteById(
+        event.subscriptionId,
+      );
+      if (deleted === 0) {
+        logger.info(
+          { subscriptionId: event.subscriptionId },
+          '[Saga Orchestrator] Compensation skipped, subscription already confirmed or removed',
+        );
+      }
       return;
     }
 

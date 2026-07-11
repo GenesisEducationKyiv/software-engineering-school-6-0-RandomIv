@@ -42,13 +42,18 @@ export class SubscriptionService {
       subscription.unsubscribeToken,
     );
 
-    await this.notificationPort.sendConfirmation(
-      subscription.id,
-      email,
-      repo,
-      confirmationUrl,
-      unsubscribeUrl,
-    );
+    try {
+      await this.notificationPort.sendConfirmation(
+        subscription.id,
+        email,
+        repo,
+        confirmationUrl,
+        unsubscribeUrl,
+      );
+    } catch (error) {
+      await this.subscriptionRepository.deleteById(subscription.id);
+      throw error;
+    }
 
     return subscription;
   }

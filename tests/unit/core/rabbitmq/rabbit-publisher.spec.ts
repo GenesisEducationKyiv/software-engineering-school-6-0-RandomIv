@@ -18,7 +18,7 @@ describe('rabbit-publisher', () => {
     (amqp.connect as jest.Mock).mockResolvedValue(model);
   });
 
-  it('connects, asserts the queue durable, and publishes with persistent:true', async () => {
+  it('connects, asserts the queue durable, and publishes with persistent:true and a messageId', async () => {
     const publisher = new RabbitMessagePublisher<{ hello: string }>(
       'amqp://localhost',
       'my-queue',
@@ -33,8 +33,43 @@ describe('rabbit-publisher', () => {
     expect(sendToQueue).toHaveBeenCalledWith(
       'my-queue',
       Buffer.from(JSON.stringify({ hello: 'world' })),
-      { persistent: true },
+      {
+        persistent: true,
+        messageId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      },
     );
+  });
+
+  it('asserts the dead-letter topology when deadLetter is enabled', async () => {
+    const assertExchange = jest.fn().mockResolvedValue(undefined);
+    const bindQueue = jest.fn().mockResolvedValue(undefined);
+    createChannel.mockResolvedValueOnce({
+      assertQueue,
+      assertExchange,
+      bindQueue,
+      sendToQueue,
+      on: channelOn,
+    });
+
+    const publisher = new RabbitMessagePublisher<{ hello: string }>(
+      'amqp://localhost',
+      'my-queue',
+      { deadLetter: true },
+    );
+
+    await publisher.publish({ hello: 'world' });
+
+    expect(assertExchange).toHaveBeenCalledWith('my-queue.dlx', 'fanout', {
+      durable: true,
+    });
+    expect(assertQueue).toHaveBeenCalledWith('my-queue.dlq', {
+      durable: true,
+    });
+    expect(bindQueue).toHaveBeenCalledWith('my-queue.dlq', 'my-queue.dlx', '');
+    expect(assertQueue).toHaveBeenCalledWith('my-queue', {
+      durable: true,
+      arguments: { 'x-dead-letter-exchange': 'my-queue.dlx' },
+    });
   });
 
   it('reuses the same connection and channel across multiple publishes', async () => {

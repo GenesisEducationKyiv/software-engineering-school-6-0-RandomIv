@@ -47,6 +47,7 @@ export const createDependencyContainer = (): DependencyContainer => {
   const plainPublisher = new RabbitMessagePublisher<NotificationMessage>(
     config.RABBITMQ_URL,
     NOTIFICATION_QUEUE,
+    { deadLetter: true },
   );
   const sagaPublisher = new RabbitMessagePublisher<SendConfirmationCommand>(
     config.RABBITMQ_URL,

@@ -21,14 +21,21 @@ export class SendConfirmationCommandHandler implements MessageHandler<SendConfir
       command.unsubscribeUrl,
     );
 
-    await this.eventPublisher.publish({
-      type: 'confirmation-sent',
-      subscriptionId: command.subscriptionId,
-    });
-    logger.info(
-      { subscriptionId: command.subscriptionId },
-      '[Notification] Confirmation sent and success event published',
-    );
+    try {
+      await this.eventPublisher.publish({
+        type: 'confirmation-sent',
+        subscriptionId: command.subscriptionId,
+      });
+      logger.info(
+        { subscriptionId: command.subscriptionId },
+        '[Notification] Confirmation sent and success event published',
+      );
+    } catch (error) {
+      logger.warn(
+        { subscriptionId: command.subscriptionId, err: error },
+        '[Notification] Confirmation sent but failed to publish confirmation-sent event',
+      );
+    }
   }
 
   async onFailureExhausted(
