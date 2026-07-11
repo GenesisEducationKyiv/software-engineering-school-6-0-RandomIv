@@ -9,7 +9,6 @@ import { grpcSchema } from './grpc.config';
 import { githubSchema } from './github.config';
 import { notificationSchema } from './notification.config';
 import { rabbitmqSchema } from './rabbitmq.config';
-import { logger } from '../core/logger';
 
 const schema = appSchema
   .extend(authSchema.shape)
@@ -24,8 +23,10 @@ const schema = appSchema
 const parsed = schema.safeParse(process.env);
 
 if (!parsed.success) {
-  logger.error('Invalid or missing environment variables');
-  logger.error({ validationError: z.treeifyError(parsed.error) });
+  process.stderr.write('Invalid or missing environment variables\n');
+  process.stderr.write(
+    `${JSON.stringify(z.treeifyError(parsed.error), null, 2)}\n`,
+  );
 
   process.exit(1);
 }

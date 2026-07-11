@@ -31,7 +31,7 @@ This document covers:
 
 ### Non-Functional Requirements
 
-- Keep infrastructure simple (single service + standard dependencies).
+- Keep infrastructure lean (two focused services + standard dependencies, no unnecessary moving parts).
 - Maintain service operation if the caching layer is unavailable.
 - Protect programmatic API access with an API key.
 - Expose operational metrics and health checks.
@@ -41,7 +41,11 @@ This document covers:
 ## 3. Architecture Overview
 
 ### Architecture Style
-Single-process application with internal modules and background task scheduling.
+Two cooperating services, not a single process: an **API service** (HTTP + gRPC + in-process cron
+scheduler) that owns subscriptions and release detection, and a **notification microservice** that
+owns email delivery. They communicate asynchronously over RabbitMQ — a command/event saga for
+subscription confirmations (with compensation on delivery failure) and a plain queue for release
+fan-out. See `docs/architecture.md` for the module-level layer diagram.
 
 ### Technology Stack
 
@@ -50,9 +54,10 @@ Single-process application with internal modules and background task scheduling.
 | Runtime | Node.js + TypeScript |
 | HTTP Transport | Express framework |
 | RPC Transport | gRPC |
+| Message Broker | RabbitMQ (command/event queues, saga compensation) |
 | Validation | Zod |
 | Persistence | ORM with relational database |
-| Task Scheduling | In-process scheduler |
+| Task Scheduling | In-process scheduler (API service only) |
 | Email Delivery | SMTP provider |
 | Caching | Optional distributed cache |
 | Monitoring | Prometheus metrics |
@@ -61,29 +66,43 @@ Single-process application with internal modules and background task scheduling.
 
 ```mermaid
 graph TD
-    U[End User / Client] -->|HTTP| APP[Application]
-    U -->|gRPC| APP
+    U[End User / Client] -->|HTTP| API[API Service]
+    U -->|gRPC| API
 
-    APP -->|ORM| DB[(Relational Database)]
-    APP -->|Optional| CACHE[(Cache Layer)]
-    APP -->|REST API| GH[GitHub]
-    APP -->|SMTP| EMAIL[Email Provider]
+    API -->|ORM| DB[(Relational Database)]
+    API -->|Optional| CACHE[(Cache Layer)]
+    API -->|REST API| GH[GitHub]
 
-    APP -->|Notifications| U
+    API -->|"publish: confirmation command,<br/>release messages"| MQ[(RabbitMQ)]
+    MQ -->|consume| NOTIF[Notification Microservice]
+    NOTIF -->|"publish: confirmation-sent /<br/>confirmation-failed"| MQ
+    MQ -->|consume: compensate on failure| API
+
+    NOTIF -->|SMTP| EMAIL[Email Provider]
+    EMAIL -->|Emails| U
 ```
 
 ### Internal Modules
 
-- `modules/subscription` — subscription business logic (REST/gRPC/web controllers)
+`modules/subscription`, `modules/scanner` and `modules/repository` run inside the **API service**
+process (`app.ts` + `index.ts`). `modules/notification` runs inside the **notification
+microservice** process (`notification.ts`), except for the saga orchestrator piece described below,
+which lives in `modules/subscription` on the API service side.
+
+- `modules/subscription` — subscription business logic (REST/gRPC/web controllers), plus
+  `saga/subscription-saga.orchestrator.ts` which compensates (deletes the subscription) when the
+  notification microservice reports a failed confirmation
 - `modules/notification` — notification delivery across three transports: `rest/`, `grpc/`,
-  `rabbitmq/` (incl. `saga/`), plus the `delivery/` email channel
+  `rabbitmq/` (incl. `saga/` — the command handler that sends confirmation emails and reports
+  success/failure back), plus the `delivery/` email channel
 - `modules/repository` — repository persistence
-- `modules/scanner` — release detection and dispatch
+- `modules/scanner` — release detection and dispatch (publishes release messages to RabbitMQ; the
+  notification microservice consumes them and sends the emails)
 - `core` — generic infrastructure: `db`, `cache`, `logger`, `grpc` server, `rabbitmq` transport,
   `metrics`
 - `integrations` — outbound adapters to third parties: `github`, `email`
 - `config` — environment schema validation
-- `schedulers` — periodic release-check job
+- `schedulers` — periodic release-check job (API service only)
 - `views` — HTML template helpers for the public web routes
 - `common` — cross-module contracts, errors, middleware, constants, shared utilities
 
@@ -145,6 +164,11 @@ Constraints:
 
 ### 6.1 Subscribe + Confirm Flow
 
+Subscription creation and the actual email send are decoupled by a saga: the API service creates
+the subscription and hands off a command over RabbitMQ; the notification microservice does the
+send and reports back success or failure; the API service compensates (deletes the subscription)
+only on a reported failure.
+
 ```mermaid
 sequenceDiagram
     participant User
@@ -152,15 +176,30 @@ sequenceDiagram
     participant SVC as Subscription Service
     participant ExternalSvc as GitHub
     participant DB as Database
+    participant MQ as RabbitMQ
+    participant Notif as Notification Microservice
     participant Provider as Email Provider
+    participant Saga as Saga Orchestrator
 
     User->>Transport: Subscribe(email, repo)
     Transport->>SVC: Create subscription
     SVC->>ExternalSvc: Validate repository exists
     ExternalSvc-->>SVC: Exists / Not Found
     SVC->>DB: Create unconfirmed subscription
-    SVC->>Provider: Send confirmation email
-    Provider-->>User: Confirmation email
+    SVC->>MQ: Publish SendConfirmationCommand
+    Note over SVC,MQ: If this publish itself throws (broker down),<br/>SVC deletes the subscription synchronously and returns an error
+    SVC-->>User: 201 Created
+
+    MQ->>Notif: Deliver SendConfirmationCommand
+    Notif->>Provider: Send confirmation email
+    alt Delivery succeeded
+        Provider-->>User: Confirmation email
+        Notif->>MQ: Publish confirmation-sent
+    else Delivery failed after retries
+        Notif->>MQ: Publish confirmation-failed
+        MQ->>Saga: Deliver confirmation-failed
+        Saga->>DB: Delete subscription (if still unconfirmed)
+    end
 
     User->>Transport: Confirm(token)
     Transport->>SVC: Confirm subscription
@@ -170,32 +209,42 @@ sequenceDiagram
 
 ### 6.2 Release Detection and Notification Flow
 
+Unlike the confirmation flow, release notifications have no saga or compensation: the scanner
+publishes one message per subscriber to a plain RabbitMQ queue and only knows whether the *publish*
+succeeded, not whether the notification microservice actually delivered the email. A publish
+failure is treated the same as a delivery failure — `lastSeenTag` is left unchanged so the release
+is retried on the next cron cycle.
+
 ```mermaid
 sequenceDiagram
     participant Scheduler
     participant Scanner as Release Scanner
     participant DB as Database
     participant ExternalSvc as GitHub
+    participant MQ as RabbitMQ
+    participant Notif as Notification Microservice
     participant Provider as Email Provider
 
     loop Periodically
         Scheduler->>Scanner: Check for releases
         Scanner->>DB: Load repositories with confirmed subscriptions
-        
+
         loop For each repository
             Scanner->>ExternalSvc: Fetch latest release
             ExternalSvc-->>Scanner: Release / Not Found / Rate Limit
-            
+
             alt New release detected
                 Scanner->>DB: Load confirmed subscribers
                 loop For each subscriber
-                    Scanner->>Provider: Send notification
-                    Provider-->>Scanner: Sent / Failed
+                    Scanner->>MQ: Publish release message
+                    MQ-->>Scanner: Published / Publish failed
+                    MQ->>Notif: Deliver release message (async)
+                    Notif->>Provider: Send notification email
                 end
-                
-                alt All succeeded
+
+                alt All publishes succeeded
                     Scanner->>DB: Update last seen release
-                else Any failed
+                else Any publish failed
                     Scanner-->>Scanner: Retry next cycle
                 end
             end
@@ -292,17 +341,28 @@ The production service runs in a containerized infrastructure on a single manage
 
 ### Local/Container Deployment
 
-The deployment orchestration includes:
+The deployment orchestration (`docker-compose.yml`) includes two application services plus their
+shared dependencies:
 
-- The main application service
+- The API service (`app`) and the notification microservice (`notification`), each built from its
+  own Dockerfile
+- RabbitMQ — the transport connecting the two services
 - The relational database
 - The optional cache system
+- An observability stack (Elasticsearch, Kibana, Filebeat, Prometheus, Grafana) for logs and metrics
 
-Application initialization sequence:
+API service initialization sequence:
 
 1. Load and validate environment configuration.
 2. Initialize HTTP and gRPC servers.
 3. Start background scheduler.
+4. Start the RabbitMQ saga-event consumer.
+
+Notification microservice initialization sequence:
+
+1. Load and validate environment configuration.
+2. Initialize the HTTP and gRPC servers.
+3. Start the RabbitMQ consumers (plain notification queue and the confirmation-command queue).
 
 ---
 
@@ -320,5 +380,7 @@ Application initialization sequence:
 ### Future Evolution Paths
 
 - Add distributed job coordination for horizontal scaling scenarios.
-- Introduce persistent message queue for stronger delivery guarantees.
-- Implement explicit retry policies with backoff and attempt tracking.
+- Extend saga-style compensation to release notifications, which are currently fire-and-forget
+  once published to RabbitMQ (see §6.2).
+- Implement explicit retry policies with backoff and attempt tracking (the confirmation saga
+  currently retries on redelivery without a bounded attempt counter).

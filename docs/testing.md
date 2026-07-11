@@ -50,7 +50,10 @@ npm run test:unit
 
 Integration tests verify the communication between the application layer and real infrastructure components.
 
-Running the command below will spin up isolated, ephemeral **PostgreSQL** (mapped to port `5433`) and **Redis** (mapped to port `6380`) containers, automatically apply database migrations, run the test suites, and safely wipe out the containers afterward:
+Running the command below will spin up isolated, ephemeral **PostgreSQL** (mapped to port `5433`),
+**Redis** (mapped to port `6380`) and **RabbitMQ** (mapped to port `5673`) containers, automatically
+apply database migrations, run the test suites, and safely wipe out the containers afterward. The
+RabbitMQ container is exercised directly by the notification queue and saga round-trip specs.
 
 ```bash
 # Spin up integration environment, run migrations, execute tests, and tear down
@@ -64,7 +67,13 @@ npm run test:integration:env
 
 E2E tests simulate complete real-world user journeys using Playwright and a mocked SMTP environment via MailHog.
 
-This process builds the actual production-ready Docker image for the application, spins it up alongside isolated **PostgreSQL** (mapped to port `5434`) and **Redis** containers inside a dedicated Docker network, and fires Playwright browser actions against it.
+This process builds the two production-ready Docker images that make up the system — the **API
+service** (`Dockerfile`) and the **notification microservice** (`Dockerfile.notification`) — and
+spins them up alongside isolated **PostgreSQL** (mapped to port `5434`), **Redis**, **RabbitMQ**
+(the transport connecting the two services) and **MailHog** containers inside a dedicated Docker
+network, then fires Playwright browser actions against the API service. A confirmation email sent
+during a test round-trips through the real saga: API service → RabbitMQ → notification
+microservice → MailHog.
 
 ```bash
 # Install required Playwright browser binaries and system dependencies

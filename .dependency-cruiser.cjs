@@ -2,10 +2,12 @@
 module.exports = {
   forbidden: [
     {
-      name: 'no-core-to-modules',
+      name: 'no-infra-to-modules',
       severity: 'error',
-      comment: 'core/ is transport/infrastructure and must not depend on domain modules',
-      from: { path: '^src/core' },
+      comment:
+        'core/, integrations/, config/ and views/ are infrastructure and must not depend on ' +
+        'domain modules',
+      from: { path: '^src/(core|integrations|config|views)' },
       to: { path: '^src/modules' },
     },
     {
@@ -25,15 +27,23 @@ module.exports = {
       to: { path: '^src/core', pathNot: '^src/core/logger' },
     },
     {
+      name: 'no-config-to-other-layers',
+      severity: 'error',
+      comment:
+        'config/ is foundational, like common/, and must not depend on any other internal ' +
+        'layer: it only reads env vars and third-party packages',
+      from: { path: '^src/config' },
+      to: { path: '^src/(core|common|integrations|views|modules)' },
+    },
+    {
       name: 'no-cross-module-value-imports',
       severity: 'error',
       comment:
-        'subscription and notification modules must stay decoupled at runtime; only type-only ' +
-        'imports may cross between them (the saga orchestrator needs the shape of the event it ' +
-        'reacts to)',
-      from: { path: '^src/modules/(subscription|notification)' },
+        'domain modules must stay decoupled at runtime; only type-only imports may cross ' +
+        'between them (the saga orchestrator needs the shape of the event it reacts to)',
+      from: { path: '^src/modules/(subscription|notification|scanner|repository)' },
       to: {
-        path: '^src/modules/(subscription|notification)',
+        path: '^src/modules/(subscription|notification|scanner|repository)',
         pathNot: '^src/modules/$1',
         dependencyTypesNot: ['type-only'],
       },
