@@ -24,14 +24,14 @@ import { CachedGitHubClient } from './integrations/github/cached-github.client';
 import { GitHubService } from './integrations/github/github.service';
 
 import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
-import { RabbitMqProvider } from './modules/notification/rabbitmq/rabbitmq.provider';
 import { SagaConfirmationProvider } from './modules/notification/rabbitmq/saga/saga.provider';
-import { NOTIFICATION_QUEUE } from './modules/notification/rabbitmq/rabbitmq.contract';
-import type { NotificationMessage } from './modules/notification/rabbitmq/rabbitmq.contract';
+import { GrpcNotificationProvider } from './modules/notification/grpc/grpc.provider';
 import {
   SEND_CONFIRMATION_COMMAND_QUEUE,
   type SendConfirmationCommand,
 } from './modules/notification/rabbitmq/saga/saga.contract';
+
+const DEFAULT_NOTIFICATION_GRPC_URL = 'localhost:50061';
 
 export interface DependencyContainer {
   apiController: SubscriptionRestController;
@@ -39,23 +39,21 @@ export interface DependencyContainer {
   grpcHandlers: ReleaseNotifierHandlers;
   scheduler: ReleaseCheckScheduler;
   subscriptionSagaOrchestrator: SubscriptionSagaOrchestrator;
+  releaseNotificationProvider: GrpcNotificationProvider;
 }
 
 export const createDependencyContainer = (): DependencyContainer => {
   const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 
-  const plainPublisher = new RabbitMessagePublisher<NotificationMessage>(
-    config.RABBITMQ_URL,
-    NOTIFICATION_QUEUE,
-    { deadLetter: true },
-  );
   const sagaPublisher = new RabbitMessagePublisher<SendConfirmationCommand>(
     config.RABBITMQ_URL,
     SEND_CONFIRMATION_COMMAND_QUEUE,
   );
 
-  const rabbitMqProvider = new RabbitMqProvider(plainPublisher);
   const sagaConfirmationProvider = new SagaConfirmationProvider(sagaPublisher);
+  const releaseNotificationProvider = new GrpcNotificationProvider(
+    config.NOTIFICATION_GRPC_URL ?? DEFAULT_NOTIFICATION_GRPC_URL,
+  );
 
   const confirmationPort = sagaConfirmationProvider;
 
@@ -86,7 +84,7 @@ export const createDependencyContainer = (): DependencyContainer => {
 
   const scannerService = new ScannerService(
     releaseProvider,
-    rabbitMqProvider,
+    releaseNotificationProvider,
     repositoryRepository,
     appBaseUrl,
   );
@@ -109,5 +107,6 @@ export const createDependencyContainer = (): DependencyContainer => {
     grpcHandlers,
     scheduler,
     subscriptionSagaOrchestrator,
+    releaseNotificationProvider,
   };
 };

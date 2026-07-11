@@ -5,7 +5,10 @@ import type amqp from 'amqplib';
 import { createApp } from './app';
 import { config } from './config';
 import { logger } from './core/logger';
-import { createDependencyContainer } from './dependency-container';
+import {
+  createDependencyContainer,
+  type DependencyContainer,
+} from './dependency-container';
 import { startGrpcServer } from './core/grpc/grpc.server';
 import { RabbitConsumer } from './core/rabbitmq/rabbit-consumer';
 import {
@@ -20,6 +23,7 @@ let httpServer: HttpServer | null = null;
 let grpcServer: grpc.Server | null = null;
 let releaseCheckTask: ScheduledTask | null = null;
 let sagaEventsModel: amqp.RecoveringChannelModel | null = null;
+let dependencyContainer: DependencyContainer | null = null;
 let isShuttingDown = false;
 
 const shutdownHttpServer = async (): Promise<void> => {
@@ -64,6 +68,10 @@ const shutdownSagaConsumer = async (): Promise<void> => {
   await sagaEventsModel.close();
 };
 
+const shutdownReleaseNotificationProvider = (): void => {
+  dependencyContainer?.releaseNotificationProvider.close();
+};
+
 const setupGracefulShutdown = (): void => {
   const handleShutdownSignal = async (
     signal: NodeJS.Signals,
@@ -78,6 +86,8 @@ const setupGracefulShutdown = (): void => {
     if (releaseCheckTask) {
       void releaseCheckTask.stop();
     }
+
+    shutdownReleaseNotificationProvider();
 
     const forceShutdownTimer = setTimeout(() => {
       logger.error('Graceful shutdown timed out. Forcing process exit.');
@@ -115,7 +125,7 @@ const setupGracefulShutdown = (): void => {
 const bootstrap = async (): Promise<void> => {
   setupGracefulShutdown();
 
-  const dependencyContainer = createDependencyContainer();
+  dependencyContainer = createDependencyContainer();
 
   const app = createApp({
     apiController: dependencyContainer.apiController,

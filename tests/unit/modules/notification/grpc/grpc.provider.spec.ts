@@ -1,3 +1,4 @@
+import * as grpc from '@grpc/grpc-js';
 import { GrpcNotificationProvider } from '../../../../../src/modules/notification/grpc/grpc.provider';
 
 const mockSendConfirmation = jest.fn();
@@ -25,6 +26,8 @@ describe('GrpcNotificationProvider', () => {
       mockSendConfirmation.mockImplementation(
         (
           _req: unknown,
+          _metadata: grpc.Metadata,
+          _options: Partial<grpc.CallOptions>,
           callback: (err: Error | null, res: { message: string }) => void,
         ) => {
           callback(null, { message: 'Confirmation sent' });
@@ -46,13 +49,20 @@ describe('GrpcNotificationProvider', () => {
           confirmationUrl: 'https://app.example.com/confirm/token',
           unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
         },
+        expect.any(grpc.Metadata),
+        expect.objectContaining({ deadline: expect.any(Number) }),
         expect.any(Function),
       );
     });
 
     it('propagates gRPC errors', async () => {
       mockSendConfirmation.mockImplementation(
-        (_req: unknown, callback: (err: Error) => void) => {
+        (
+          _req: unknown,
+          _metadata: grpc.Metadata,
+          _options: Partial<grpc.CallOptions>,
+          callback: (err: Error) => void,
+        ) => {
           callback(new Error('Connection refused'));
         },
       );
@@ -74,6 +84,8 @@ describe('GrpcNotificationProvider', () => {
       mockSendRelease.mockImplementation(
         (
           _req: unknown,
+          _metadata: grpc.Metadata,
+          _options: Partial<grpc.CallOptions>,
           callback: (err: Error | null, res: { message: string }) => void,
         ) => {
           callback(null, { message: 'Release notification sent' });
@@ -96,13 +108,20 @@ describe('GrpcNotificationProvider', () => {
           releaseUrl: 'https://github.com/owner/repo/releases/tag/v2.0.0',
           unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
         },
+        expect.any(grpc.Metadata),
+        expect.objectContaining({ deadline: expect.any(Number) }),
         expect.any(Function),
       );
     });
 
     it('propagates gRPC errors', async () => {
       mockSendRelease.mockImplementation(
-        (_req: unknown, callback: (err: Error) => void) => {
+        (
+          _req: unknown,
+          _metadata: grpc.Metadata,
+          _options: Partial<grpc.CallOptions>,
+          callback: (err: Error) => void,
+        ) => {
           callback(new Error('Connection refused'));
         },
       );
