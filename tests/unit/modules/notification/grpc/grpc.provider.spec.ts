@@ -5,7 +5,7 @@ const mockSendConfirmation = jest.fn();
 const mockSendRelease = jest.fn();
 const mockClose = jest.fn();
 
-jest.mock('../../../../../src/generated/v1/notification', () => ({
+jest.mock('../../../../../src/generated/notification/v1/notification', () => ({
   NotificationServiceClient: jest.fn().mockImplementation(() => ({
     sendConfirmation: mockSendConfirmation,
     sendRelease: mockSendRelease,

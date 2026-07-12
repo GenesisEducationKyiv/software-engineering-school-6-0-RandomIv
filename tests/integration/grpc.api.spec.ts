@@ -3,7 +3,10 @@ import path from 'node:path';
 import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 
-const PROTO_PATH = path.resolve(process.cwd(), 'proto/release_notifier.proto');
+const PROTO_PATH = path.resolve(
+  process.cwd(),
+  'proto/release_notifier/release_notifier.proto',
+);
 
 const getFreePort = async (): Promise<number> => {
   return new Promise((resolve, reject) => {

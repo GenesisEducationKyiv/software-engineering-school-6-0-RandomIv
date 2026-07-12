@@ -1,8 +1,8 @@
 version: v2
 modules:
-  - path: proto/notification
+  - path: proto
+    excludes:
+      - proto/release_notifier
 lint:
   use:
     - STANDARD
-  except:
-    - PACKAGE_DIRECTORY_MATCH

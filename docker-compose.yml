@@ -13,11 +13,14 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+      notification:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/github_notifier
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://rabbitmq:5672
+      NOTIFICATION_GRPC_URL: notification:50061
     ports:
       - "3000:3000"
       - "50051:50051"
