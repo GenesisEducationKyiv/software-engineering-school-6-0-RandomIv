@@ -42,6 +42,7 @@ services:
       dockerfile: Dockerfile.notification
     environment:
       NOTIFICATION_PORT: 3001
+      NOTIFICATION_API_KEY: test-internal-key
       SMTP_HOST: mailhog
       SMTP_PORT: '1025'
       EMAIL_USER: test@example.com
@@ -70,6 +71,7 @@ services:
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/github_notifier
       REDIS_URL: redis://redis:6379
       NOTIFICATION_URL: http://notification:3001
+      NOTIFICATION_API_KEY: test-internal-key
       API_KEY: test-api-key
       RELEASE_CHECK_CRON: '0 0 1 1 *'
     ports:

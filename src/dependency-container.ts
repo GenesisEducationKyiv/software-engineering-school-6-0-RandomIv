@@ -35,6 +35,7 @@ export const createDependencyContainer = (): DependencyContainer => {
 
   const notificationPort = new HttpNotificationProvider(
     config.NOTIFICATION_URL,
+    config.NOTIFICATION_API_KEY,
   );
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
