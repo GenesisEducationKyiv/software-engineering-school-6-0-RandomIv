@@ -21,6 +21,16 @@ const makeMessage = (
     properties: { messageId },
   }) as unknown as amqp.ConsumeMessage;
 
+const makeRawMessage = (
+  content: string,
+  redelivered = false,
+): amqp.ConsumeMessage =>
+  ({
+    content: Buffer.from(content),
+    fields: { redelivered },
+    properties: {},
+  }) as unknown as amqp.ConsumeMessage;
+
 describe('rabbitmq.consumer', () => {
   const ack = jest.fn();
   const nack = jest.fn();
@@ -179,6 +189,28 @@ describe('rabbitmq.consumer', () => {
     expect(channel.sendConfirmation).toHaveBeenCalledTimes(1);
     expect(ack).toHaveBeenCalledTimes(2);
     expect(nack).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unparseable message straight to DLQ without requeue', async () => {
+    const handler = await setup();
+
+    await handler(makeRawMessage('not-json'));
+
+    expect(channel.sendConfirmation).not.toHaveBeenCalled();
+    expect(channel.sendRelease).not.toHaveBeenCalled();
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
+  it('rejects a schema-invalid message to DLQ without requeue even on first delivery', async () => {
+    const handler = await setup();
+
+    await handler(makeRawMessage(JSON.stringify({ type: 'unknown' }), false));
+
+    expect(channel.sendConfirmation).not.toHaveBeenCalled();
+    expect(channel.sendRelease).not.toHaveBeenCalled();
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
   });
 
   it('ignores null message', async () => {

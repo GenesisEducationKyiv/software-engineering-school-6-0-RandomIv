@@ -2,6 +2,7 @@ import amqp from 'amqplib';
 import type { NotificationChannel } from '../delivery/notification-channel.interface';
 import {
   NOTIFICATION_QUEUE,
+  type NotificationMessage,
   notificationMessageSchema,
   setupNotificationTopology,
 } from './rabbitmq.contract';
@@ -28,22 +29,29 @@ const handleMessage = async (
 ): Promise<void> => {
   if (!msg) return;
 
+  let message: NotificationMessage;
   try {
-    const message = notificationMessageSchema.parse(
+    message = notificationMessageSchema.parse(
       JSON.parse(msg.content.toString()),
     );
+  } catch (error) {
+    logger.error({ err: error }, '[MQ] Invalid message rejected to DLQ');
+    mqChannel.nack(msg, false, false);
+    return;
+  }
 
-    const messageId =
-      typeof msg.properties.messageId === 'string'
-        ? msg.properties.messageId
-        : undefined;
+  const messageId =
+    typeof msg.properties.messageId === 'string'
+      ? msg.properties.messageId
+      : undefined;
 
-    if (messageId && processedMessageIds.has(messageId)) {
-      mqChannel.ack(msg);
-      logger.info({ type: message.type }, '[MQ] Duplicate message skipped');
-      return;
-    }
+  if (messageId && processedMessageIds.has(messageId)) {
+    mqChannel.ack(msg);
+    logger.info({ type: message.type }, '[MQ] Duplicate message skipped');
+    return;
+  }
 
+  try {
     if (message.type === 'confirmation') {
       await channel.sendConfirmation(
         message.to,
@@ -65,7 +73,7 @@ const handleMessage = async (
     mqChannel.ack(msg);
     logger.info({ type: message.type }, '[MQ] Message processed');
   } catch (error) {
-    logger.error({ err: error }, '[MQ] Failed to process message');
+    logger.error({ err: error }, '[MQ] Failed to deliver message');
     mqChannel.nack(msg, false, !msg.fields.redelivered);
   }
 };

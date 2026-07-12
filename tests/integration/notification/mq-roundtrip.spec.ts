@@ -2,6 +2,7 @@ import amqp from 'amqplib';
 import { MqNotificationProvider } from '../../../src/modules/notification/rabbitmq/rabbitmq.provider';
 import { startMqConsumer } from '../../../src/modules/notification/rabbitmq/rabbitmq.consumer';
 import {
+  NOTIFICATION_DLQ,
   NOTIFICATION_QUEUE,
   setupNotificationTopology,
 } from '../../../src/modules/notification/rabbitmq/rabbitmq.contract';
@@ -27,6 +28,19 @@ const waitFor = (
     }, intervalMs);
   });
 
+const waitForAsync = async (
+  fn: () => Promise<boolean>,
+  timeoutMs = 5000,
+  intervalMs = 100,
+): Promise<void> => {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    if (await fn()) return;
+    await new Promise((resolve) => setTimeout(resolve, intervalMs));
+  }
+  throw new Error('Timed out waiting for condition');
+};
+
 describe('notification MQ round-trip', () => {
   let connection: amqp.ChannelModel;
   let adminChannel: amqp.Channel;
@@ -46,6 +60,7 @@ describe('notification MQ round-trip', () => {
 
   beforeEach(async () => {
     await adminChannel.purgeQueue(NOTIFICATION_QUEUE);
+    await adminChannel.purgeQueue(NOTIFICATION_DLQ);
     jest.clearAllMocks();
   });
 
@@ -96,5 +111,23 @@ describe('notification MQ round-trip', () => {
       'https://app.example.com/unsubscribe/token',
     );
     expect(channel.sendConfirmation).not.toHaveBeenCalled();
+  });
+
+  it('dead-letters a message that fails validation into the DLQ', async () => {
+    adminChannel.sendToQueue(
+      NOTIFICATION_QUEUE,
+      Buffer.from(JSON.stringify({ type: 'unknown' })),
+      { persistent: true },
+    );
+
+    await waitForAsync(
+      async () =>
+        (await adminChannel.checkQueue(NOTIFICATION_DLQ)).messageCount > 0,
+    );
+
+    const { messageCount } = await adminChannel.checkQueue(NOTIFICATION_DLQ);
+    expect(messageCount).toBeGreaterThan(0);
+    expect(channel.sendConfirmation).not.toHaveBeenCalled();
+    expect(channel.sendRelease).not.toHaveBeenCalled();
   });
 });
