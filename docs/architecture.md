@@ -108,11 +108,11 @@ configured in `.dependency-cruiser.cjs`:
   (every file, every edge), as opposed to the hand-drawn layer summary above. Re-run it whenever
   the module structure changes.
 
-`no-orphans` also runs, but at `warn` severity only. Most of what it flags is type-only files —
-interface and entity files referenced solely via `import type` (e.g. `ConfirmationPort`,
-`MessageHandler`, `subscription.entity.ts`) — whose imports are erased at compile time, leaving no
-runtime dependents. That's expected given this codebase's interface-segregation style, so it
-doesn't fail the build. A *non*-type-only file surfacing here instead signals genuinely dead code:
-currently `modules/notification/rabbitmq/rabbitmq.provider.ts` (`RabbitMqProvider`) is such an
-orphan, left unwired after release notifications moved from the RabbitMQ queue to a direct gRPC
-call — a cleanup candidate rather than a boundary violation.
+`no-orphans` also runs, but at `warn` severity only, and two expected kinds of file surface under
+it. First, type-only files: interfaces and entities referenced solely via `import type`
+(`ConfirmationPort`, `MessageHandler`, `subscription.entity.ts`), whose imports are erased at
+compile time and leave no runtime dependents. Second, the alternative port adapters this project
+keeps side by side on purpose: `ConfirmationPort` and `ReleaseNotificationPort` each have several
+interchangeable implementations spanning HTTP, plain RabbitMQ, the RabbitMQ saga, and gRPC, and the
+composition root wires one at a time, so the rest (such as `RabbitMqProvider`) appear as orphans.
+Both kinds are by design rather than boundary violations, so neither fails the build.

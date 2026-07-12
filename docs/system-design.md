@@ -95,10 +95,11 @@ which lives in `modules/subscription` on the API service side.
 - `modules/subscription` — subscription business logic (REST/gRPC/web controllers), plus
   `saga/subscription-saga.orchestrator.ts` which compensates (deletes the subscription) when the
   notification microservice reports a failed confirmation
-- `modules/notification` — notification delivery across three transports: `grpc/` (the active
-  release path — the API service calls `SendRelease` here), `rabbitmq/` (incl. `saga/` — the
-  command handler that sends confirmation emails and reports success/failure back), and `rest/`
-  (a preparatory HTTP transport, currently unwired), plus the `delivery/` email channel
+- `modules/notification` — notification delivery across three interchangeable transports behind the
+  notification ports: `grpc/` (the release path the API service currently calls via `SendRelease`),
+  `rabbitmq/` (incl. `saga/` — the command handler that sends confirmation emails and reports
+  success/failure back), and `rest/` (an HTTP adapter kept for comparison, not currently wired),
+  plus the `delivery/` email channel
 - `modules/repository` — repository persistence
 - `modules/scanner` — release detection and dispatch (calls the notification microservice over
   gRPC via `GrpcNotificationProvider`; one synchronous call per subscriber)
@@ -149,12 +150,15 @@ All of these methods require metadata key `x-api-key`.
 service, not by end clients:
 
 - `SendConfirmation`
-- `SendRelease` — the active release-notification path (see §6.2); `SendConfirmation` is defined but
-  currently unused, since confirmations flow through the RabbitMQ saga instead.
+- `SendRelease` — of these, `SendRelease` is the transport the composition root currently wires for
+  release notifications (see §6.2); `SendConfirmation` is an alternative confirmation transport that
+  stays available but is not selected, since confirmations run through the RabbitMQ saga instead.
 
 The notification microservice also exposes `GET /health` and internal REST routes
-(`POST /send-confirmation`, `POST /send-release`) mirroring the gRPC methods; the REST transport is
-preparatory and currently unwired.
+(`POST /send-confirmation`, `POST /send-release`) mirroring the gRPC methods. Its REST, gRPC and
+RabbitMQ transports are interchangeable adapters behind the same notification ports; the
+composition root selects which are active, and the project keeps the others as reference
+implementations for comparing communication styles.
 
 ---
 
@@ -378,8 +382,9 @@ Notification microservice initialization sequence:
 
 1. Load and validate environment configuration.
 2. Initialize the HTTP and gRPC servers (the gRPC server serves the API service's `SendRelease` calls).
-3. Start the RabbitMQ consumer for the confirmation-command queue (a plain notification-queue
-   consumer is also started but is currently unused, since the API service no longer publishes to it).
+3. Start the RabbitMQ consumers: the confirmation-command queue used by the saga, and a plain
+   notification-queue consumer that pairs with the plain-RabbitMQ transport, kept available even
+   though the API service currently drives releases over gRPC.
 
 ---
 
