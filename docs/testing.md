@@ -1,6 +1,6 @@
 ## 🧪 Testing & Quality Assurance
 
-This project implements a multi-layered testing strategy (Unit, Integration, and End-to-End) along with strict static analysis tools to ensure code quality and system reliability.
+This project implements a multi-layered testing strategy (Unit, Integration, and End-to-End) along with strict static analysis and architecture/dependency checks to ensure code quality and system reliability.
 
 ### 📌 Prerequisites
 
@@ -90,6 +90,27 @@ If an E2E test fails locally or in CI, Playwright generates a rich visual HTML r
 
 ```bash
 npx playwright show-report
+
+```
+
+---
+
+### 5. Architecture & Dependency Checks
+
+Beyond runtime tests, the project enforces its layered architecture statically with [dependency-cruiser](https://github.com/sverweij/dependency-cruiser). This guards the boundaries described in [architecture.md](architecture.md): infrastructure (`core/`, `integrations/`, `config/`, `views/`) and the foundational `common/`/`config/` layers must not reach into domain `modules/`, domain modules stay decoupled at runtime (only `type`-only imports may cross between them), and no circular dependencies are allowed.
+
+```bash
+# Validate all dependency-boundary rules against src/
+npm run arch:check
+
+```
+
+`arch:check` runs with `--output-type err`, so any violation of an `error`-severity rule exits non-zero. It runs in the **Lint** CI workflow (`.github/workflows/lint.yml`) on every pull request, meaning a broken boundary fails the build just like a failing test. Orphan files (imported by nothing) are reported as warnings and do not fail the check.
+
+To regenerate the Mermaid dependency graph in `docs/architecture-graph.mmd`:
+
+```bash
+npm run arch:graph
 
 ```
 
