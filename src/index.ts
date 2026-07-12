@@ -10,6 +10,7 @@ import { startGrpcServer } from './core/grpc/grpc.server';
 import { RabbitConsumer } from './core/rabbitmq/rabbit-consumer';
 import {
   SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
+  subscriptionNotificationEventSchema,
   type SubscriptionNotificationEvent,
 } from './modules/notification/rabbitmq/saga/saga.contract';
 
@@ -134,6 +135,7 @@ const bootstrap = async (): Promise<void> => {
     config.RABBITMQ_URL,
     SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
     dependencyContainer.subscriptionSagaOrchestrator,
+    { parseMessage: (raw) => subscriptionNotificationEventSchema.parse(raw) },
   );
   sagaEventsModel = await sagaEventsConsumer.start();
 };
