@@ -101,14 +101,18 @@ Layering is checked with [dependency-cruiser](https://github.com/sverweij/depend
 configured in `.dependency-cruiser.cjs`:
 
 - `npm run arch:check` — runs the ruleset against `src/` and exits non-zero on any `error`-level
-  violation (the two rules above plus `no-circular`). Wired into CI (`.github/workflows/lint.yml`)
-  right after `npm run lint`.
+  violation: the five boundary rules (`no-infra-to-modules`, `no-common-to-modules`,
+  `no-common-to-core`, `no-config-to-other-layers`, `no-cross-module-value-imports`) plus
+  `no-circular`. Wired into CI (`.github/workflows/lint.yml`) right after `npm run lint`.
 - `npm run arch:graph` — regenerates `docs/architecture-graph.mmd`, the full as-built import graph
   (every file, every edge), as opposed to the hand-drawn layer summary above. Re-run it whenever
   the module structure changes.
 
-`no-orphans` also runs, but at `warn` severity only — it flags interface files that are only ever
-referenced via `import type` (e.g. `ConfirmationPort`, `MessageHandler`) as orphans, since those
-imports are erased at compile time and leave the file with no runtime dependents. That's expected
-given this codebase's interface-segregation style, not a real problem, so it doesn't fail the
-build.
+`no-orphans` also runs, but at `warn` severity only. Most of what it flags is type-only files —
+interface and entity files referenced solely via `import type` (e.g. `ConfirmationPort`,
+`MessageHandler`, `subscription.entity.ts`) — whose imports are erased at compile time, leaving no
+runtime dependents. That's expected given this codebase's interface-segregation style, so it
+doesn't fail the build. A *non*-type-only file surfacing here instead signals genuinely dead code:
+currently `modules/notification/rabbitmq/rabbitmq.provider.ts` (`RabbitMqProvider`) is such an
+orphan, left unwired after release notifications moved from the RabbitMQ queue to a direct gRPC
+call — a cleanup candidate rather than a boundary violation.
