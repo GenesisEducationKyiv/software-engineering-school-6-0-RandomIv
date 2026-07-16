@@ -1,6 +1,7 @@
 import { execSync } from 'node:child_process';
 import { createClient, type RedisClientType } from 'redis';
 import prisma from '../../src/core/db/db';
+import { webSubscribeLimiterStore } from '../../src/common/middlewares/rate-limit.middleware';
 
 let redisClient: RedisClientType | null = null;
 
@@ -19,6 +20,8 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  await webSubscribeLimiterStore.resetAll();
+
   if (redisClient?.isOpen) {
     await redisClient.flushAll();
   }

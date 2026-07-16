@@ -2,8 +2,9 @@ import { NextFunction, Request, Response } from 'express';
 import { ZodError, ZodIssue } from 'zod';
 import { AppError } from '../errors';
 import { HttpStatus } from '../constants/http-status.constant';
-import { config } from '../../config';
 import { logger } from '../../core/logger';
+
+const isDevelopment = (process.env.NODE_ENV ?? 'development') === 'development';
 
 const isRecord = (value: unknown): value is Record<string, unknown> => {
   return typeof value === 'object' && value !== null;
@@ -62,6 +63,6 @@ export const errorHandler = (
   return res.status(statusCode).json({
     status: 'error',
     message: 'Internal Server Error',
-    ...(config.NODE_ENV === 'development' && stack ? { stack } : {}),
+    ...(isDevelopment && stack ? { stack } : {}),
   });
 };

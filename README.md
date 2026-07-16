@@ -248,7 +248,7 @@ Expected response shape:
 
 6. Optional automated verification:
 ```bash
-npm test -- --runInBand tests/integration/grpc.api.spec.ts
+npm test -- --runInBand tests/integration/subscription.grpc.spec.ts
 ```
 
 ## Notes

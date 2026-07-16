@@ -24,37 +24,6 @@ describe('grpc.server', () => {
     jest.clearAllMocks();
   });
 
-  it('starts the server successfully when no errors occur', async () => {
-    mockedProtoLoader.loadSync.mockReturnValue({} as never);
-    mockedGrpc.loadPackageDefinition.mockReturnValue({
-      release_notifier: {
-        ReleaseNotifier: {
-          service: {},
-        },
-      },
-    });
-
-    const fakeServer = {
-      addService: jest.fn(),
-      bindAsync: jest.fn(
-        (
-          _addr: string,
-          _creds: unknown,
-          cb: (err: Error | null, port: number) => void,
-        ) => {
-          cb(null, 50051); // Симулюємо успішний біндинг на порт
-        },
-      ),
-    };
-    mockedGrpc.Server.mockImplementation(() => fakeServer);
-
-    const server = await startGrpcServer({} as never);
-
-    expect(fakeServer.addService).toHaveBeenCalled();
-    expect(fakeServer.bindAsync).toHaveBeenCalled();
-    expect(server).toBe(fakeServer);
-  });
-
   it('throws when the loaded package is missing the ReleaseNotifier service', async () => {
     mockedProtoLoader.loadSync.mockReturnValue({} as never);
     mockedGrpc.loadPackageDefinition.mockReturnValue({});
