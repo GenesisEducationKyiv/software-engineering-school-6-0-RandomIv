@@ -32,18 +32,32 @@ export interface DependencyContainer {
 }
 
 export const createDependencyContainer = (): DependencyContainer => {
+  const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
+
+  const transporter = nodemailer.createTransport(
+    config.SMTP_HOST
+      ? {
+          host: config.SMTP_HOST,
+          port: config.SMTP_PORT ?? 1025,
+          secure: config.SMTP_SECURE ?? config.SMTP_PORT === 465,
+          auth: {
+            user: config.EMAIL_USER,
+            pass: config.EMAIL_PASS,
+          },
+        }
+      : {
+          service: 'gmail',
+          auth: {
+            user: config.EMAIL_USER,
+            pass: config.EMAIL_PASS,
+          },
+        },
+  );
+
   const emailService = new NodemailerService({
-    transporter: nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: config.EMAIL_USER,
-        pass: config.EMAIL_PASS,
-      },
-    }),
+    transporter,
     emailUser: config.EMAIL_USER,
   });
-
-  const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);

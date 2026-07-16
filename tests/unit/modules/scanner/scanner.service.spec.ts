@@ -51,7 +51,7 @@ describe('scanner.service', () => {
   );
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
   });
 
   it('does nothing when there are no active repositories', async () => {
@@ -104,9 +104,7 @@ describe('scanner.service', () => {
       tag: 'v2.0.0',
       url: 'https://github.com/owner/repo/releases/tag/v2.0.0',
     });
-    emailService.sendReleaseEmail.mockResolvedValue({
-      messageId: 'ok',
-    } as never);
+    emailService.sendReleaseEmail.mockResolvedValue(undefined);
 
     await service.checkReleases();
 

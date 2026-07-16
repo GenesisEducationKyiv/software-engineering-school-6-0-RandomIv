@@ -8,10 +8,20 @@
     "dev": "node --watch --import tsx src/index.ts",
     "lint": "eslint .",
     "build": "tsc",
-    "db:generate": "prisma generate",
+    "db:generate": "node -e \"process.env.DATABASE_URL = process.env.DATABASE_URL || 'postgresql://fake:fake@localhost:5432/fake'; require('node:child_process').execSync('prisma generate', { stdio: 'inherit' });\"",
     "db:migrate:deploy": "prisma migrate deploy",
-    "test": "jest --runInBand",
-    "test:watch": "jest --watch"
+    "test": "npm run test:unit",
+    "test:unit": "jest --config jest.config.cjs --runInBand",
+    "test:watch": "jest --config jest.config.cjs --watch",
+    "test:integration:up": "docker compose -f docker-compose.integration.yml up -d --wait",
+    "test:integration:down": "docker compose -f docker-compose.integration.yml down -v",
+    "test:integration:run": "jest --config jest.integration.config.cjs --runInBand",
+    "test:integration:env": "npm run test:integration:up && npm run test:integration:run; EXIT=$?; npm run test:integration:down; exit $EXIT",
+    "test:e2e:up": "docker compose -f docker-compose.e2e.yml up -d --build --wait",
+    "test:e2e:down": "docker compose -f docker-compose.e2e.yml down -v",
+    "test:e2e:run": "playwright test",
+    "test:e2e:env": "npm run test:e2e:up && docker compose -f docker-compose.e2e.yml exec -T notifier-app npx prisma migrate deploy && npm run test:e2e:run; EXIT=$?; npm run test:e2e:down; exit $EXIT",
+    "test:all": "npm run test:unit && npm run test:integration:env && npm run test:e2e:env"
   },
   "repository": {
     "type": "git",
@@ -40,6 +50,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.60.0",
     "@types/express": "^5.0.6",
     "@types/jest": "^30.0.0",
     "@types/node": "^25.5.2",

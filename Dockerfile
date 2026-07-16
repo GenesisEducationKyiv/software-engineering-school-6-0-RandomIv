@@ -13,7 +13,7 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM deps AS build
 ARG PRISMA_GENERATE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/github_notifier
-COPY tsconfig.json tsconfig.test.json ./
+COPY tsconfig.json ./
 COPY prisma.config.ts ./
 COPY prisma ./prisma
 COPY proto ./proto
