@@ -1,14 +1,9 @@
-import { Transporter } from 'nodemailer';
 import { HttpStatus } from '../../common/constants/http-status.constant';
 import { AppError } from '../../common/errors';
 import { logger } from '../../core/logger';
 import { confirmationEmailTemplate } from './templates/confirmation.template';
 import { releaseEmailTemplate } from './templates/release.template';
-
-export interface NodemailerServiceDependencies {
-  transporter: Transporter;
-  emailUser: string;
-}
+import type { EmailTransport } from './email-transport.interface';
 
 export interface EmailService {
   sendSubscriptionConfirmationEmail(
@@ -28,13 +23,10 @@ export interface EmailService {
 }
 
 export class NodemailerService implements EmailService {
-  private readonly transporter: Transporter;
-  private readonly emailUser: string;
-
-  constructor(dependencies: NodemailerServiceDependencies) {
-    this.emailUser = dependencies.emailUser;
-    this.transporter = dependencies.transporter;
-  }
+  constructor(
+    private readonly transport: EmailTransport,
+    private readonly emailUser: string,
+  ) {}
 
   async sendSubscriptionConfirmationEmail(
     to: string,
@@ -49,7 +41,7 @@ export class NodemailerService implements EmailService {
     );
 
     try {
-      await this.transporter.sendMail({
+      await this.transport.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
         subject: template.subject,
@@ -80,7 +72,7 @@ export class NodemailerService implements EmailService {
     );
 
     try {
-      await this.transporter.sendMail({
+      await this.transport.sendMail({
         from: `"GitHub Release Notifier" <${this.emailUser}>`,
         to,
         subject: template.subject,

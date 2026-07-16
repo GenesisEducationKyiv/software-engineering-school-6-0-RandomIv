@@ -36,7 +36,7 @@ export const createApp = ({
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  app.get('/metrics', prometheusMetricsHandler);
+  app.get('/metrics', requireApiKey, prometheusMetricsHandler);
 
   const subscriptionApiRouter = createSubscriptionApiRouter(apiController);
   const subscriptionWebRouter = createSubscriptionWebRouter(webController);

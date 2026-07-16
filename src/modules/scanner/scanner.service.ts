@@ -1,6 +1,6 @@
 import { logger } from '../../core/logger';
-import { EmailService } from '../../integrations/email/email.service';
-import { RepositoryRepository } from '../repository/repository.repository';
+import type { NotificationPort } from '../../common/interfaces/notification-port.interface';
+import type { RepositoryRepository } from '../repository/repository.repository';
 import type { RepositoryWithSubscriptionsEntity } from '../repository/entities/repository-with-subscription.entity';
 import type { SubscriptionEntity } from '../subscription/entities/subscription.entity';
 import type {
@@ -13,7 +13,7 @@ import { AppUrls } from '../../common/utils/url-builder.util';
 export class ScannerService {
   constructor(
     private readonly releaseProvider: ReleaseProvider,
-    private readonly emailService: EmailService,
+    private readonly notificationPort: NotificationPort,
     private readonly repositoryRepository: RepositoryRepository,
     private readonly appBaseUrl: string,
   ) {}
@@ -86,7 +86,7 @@ export class ScannerService {
         this.appBaseUrl,
         sub.unsubscribeToken,
       );
-      await this.emailService.sendReleaseEmail(
+      await this.notificationPort.sendRelease(
         sub.email,
         repoFullName,
         latestRelease.tag,
@@ -95,8 +95,9 @@ export class ScannerService {
       );
       return true;
     } catch (error) {
+      const maskedEmail = sub.email.replace(/(?<=.).(?=[^@]*@)/, '*');
       logger.error(
-        { email: sub.email, repository: repoFullName, err: error },
+        { email: maskedEmail, repository: repoFullName, err: error },
         '[Scanner] Failed to notify subscriber',
       );
       return false;

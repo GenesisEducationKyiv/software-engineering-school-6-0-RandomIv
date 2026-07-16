@@ -3,8 +3,8 @@ import { z } from 'zod';
 export const emailSchema = z.object({
   EMAIL_USER: z.email(),
   EMAIL_PASS: z.string().min(1),
-  SMTP_HOST: z.string().optional(),
-  SMTP_PORT: z.coerce.number().optional(),
+  SMTP_HOST: z.string().min(1).optional(),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).optional(),
   SMTP_SECURE: z
     .enum(['true', 'false'])
     .transform((value) => value === 'true')

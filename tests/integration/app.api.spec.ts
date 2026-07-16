@@ -31,7 +31,9 @@ describe('app routing integration', () => {
   });
 
   it('returns prometheus metrics', async () => {
-    const response = await request(app).get('/metrics');
+    const response = await request(app)
+      .get('/metrics')
+      .set(API_KEY_HEADER, 'test-api-key');
 
     expect(response.status).toBe(200);
     expect(response.headers['content-type']).toContain('text/plain');
@@ -44,7 +46,9 @@ describe('app routing integration', () => {
       .get('/api/confirm/not-a-uuid')
       .set(API_KEY_HEADER, 'test-api-key');
 
-    const metricsResponse = await request(app).get('/metrics');
+    const metricsResponse = await request(app)
+      .get('/metrics')
+      .set(API_KEY_HEADER, 'test-api-key');
 
     expect(metricsResponse.status).toBe(200);
     expect(metricsResponse.text).toContain('route="/confirm/:token"');

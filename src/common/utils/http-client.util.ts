@@ -3,6 +3,7 @@ import { HttpStatus } from '../constants/http-status.constant';
 
 type FetchOptions = RequestInit & {
   params?: Record<string, string | number | boolean | null | undefined>;
+  timeoutMs?: number;
 };
 
 const buildUrl = (rawUrl: string, params?: FetchOptions['params']): URL => {
@@ -51,7 +52,7 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
 
 export async function httpClient<T>(
   rawUrl: string,
-  { params, ...options }: FetchOptions = {},
+  { params, timeoutMs, ...options }: FetchOptions = {},
 ): Promise<T> {
   const url = buildUrl(rawUrl, params);
 
@@ -60,6 +61,7 @@ export async function httpClient<T>(
     response = await fetch(url, {
       method: options.method ?? 'GET',
       ...options,
+      ...(timeoutMs ? { signal: AbortSignal.timeout(timeoutMs) } : {}),
     });
   } catch {
     throw new AppError(

@@ -11,13 +11,32 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      notification:
+        condition: service_healthy
     environment:
       NODE_ENV: production
       DATABASE_URL: postgresql://postgres:postgres@postgres:5432/github_notifier
       REDIS_URL: redis://redis:6379
+      NOTIFICATION_URL: http://notification:3001
     ports:
       - "3000:3000"
       - "50051:50051"
+
+  notification:
+    env_file: .env
+    build:
+      context: .
+      dockerfile: Dockerfile.notification
+    container_name: github_notifier_notification
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NOTIFICATION_PORT: 3001
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3001/health', res => process.exit(res.statusCode === 200 ? 0 : 1)).on('error', () => process.exit(1));"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   postgres:
     image: postgres:16-alpine

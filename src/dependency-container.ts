@@ -1,11 +1,10 @@
 import prisma from './core/db/db';
-import nodemailer from 'nodemailer';
 import { config } from './config';
-import { NodemailerService } from './integrations/email/email.service';
 import { PrismaRepositoryRepository } from './modules/repository/repository.repository';
 import { ScannerService } from './modules/scanner/scanner.service';
 import { SubscriptionService } from './modules/subscription/subscription.service';
 import { PrismaSubscriptionRepository } from './modules/subscription/subscription.repository';
+import { HttpNotificationProvider } from './modules/notification/providers/http-notification.provider';
 import { ReleaseCheckScheduler } from './schedulers/release-check.scheduler';
 import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
 
@@ -34,30 +33,10 @@ export interface DependencyContainer {
 export const createDependencyContainer = (): DependencyContainer => {
   const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 
-  const transporter = nodemailer.createTransport(
-    config.SMTP_HOST
-      ? {
-          host: config.SMTP_HOST,
-          port: config.SMTP_PORT ?? 1025,
-          secure: config.SMTP_SECURE ?? config.SMTP_PORT === 465,
-          auth: {
-            user: config.EMAIL_USER,
-            pass: config.EMAIL_PASS,
-          },
-        }
-      : {
-          service: 'gmail',
-          auth: {
-            user: config.EMAIL_USER,
-            pass: config.EMAIL_PASS,
-          },
-        },
+  const notificationPort = new HttpNotificationProvider(
+    config.NOTIFICATION_URL,
+    config.NOTIFICATION_API_KEY,
   );
-
-  const emailService = new NodemailerService({
-    transporter,
-    emailUser: config.EMAIL_USER,
-  });
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
@@ -76,13 +55,13 @@ export const createDependencyContainer = (): DependencyContainer => {
     subscriptionRepository,
     repositoryProvider,
     repositoryRepository,
-    emailService,
+    notificationPort,
     appBaseUrl,
   );
 
   const scannerService = new ScannerService(
     releaseProvider,
-    emailService,
+    notificationPort,
     repositoryRepository,
     appBaseUrl,
   );

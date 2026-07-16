@@ -5,9 +5,9 @@ import {
 } from './subscription.schema';
 import type { SubscriptionEntity } from './entities/subscription.entity';
 import type { SubscriptionWithRepositoryEntity } from './entities/subscription-with-repository.entity';
-import { RepositoryRepository } from '../repository/repository.repository';
+import type { RepositoryRepository } from '../repository/repository.repository';
 import { BadRequestError, NotFoundError } from '../../common/errors';
-import { EmailService } from '../../integrations/email/email.service';
+import type { NotificationPort } from '../../common/interfaces/notification-port.interface';
 import type { RepositoryProvider } from './interfaces/repository-provider.interface';
 import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
 import { AppUrls } from '../../common/utils/url-builder.util';
@@ -18,7 +18,7 @@ export class SubscriptionService {
     private readonly subscriptionRepository: SubscriptionRepositoryInterface,
     private readonly repositoryProvider: RepositoryProvider,
     private readonly repositoryRepository: RepositoryRepository,
-    private readonly emailService: EmailService,
+    private readonly notificationPort: NotificationPort,
     private readonly appBaseUrl: string,
   ) {}
 
@@ -40,18 +40,15 @@ export class SubscriptionService {
   }
 
   async confirmSubscription({ token }: TokenParamDto): Promise<void> {
-    const subscription =
-      await this.subscriptionRepository.findByConfirmationToken(token);
+    const count = await this.subscriptionRepository.confirmByToken(token);
+    if (count > 0) return;
 
-    if (!subscription) {
+    const existing =
+      await this.subscriptionRepository.findByConfirmationToken(token);
+    if (!existing) {
       throw new NotFoundError('Token not found');
     }
-
-    if (subscription.confirmed) {
-      throw new BadRequestError('Token already used');
-    }
-
-    await this.subscriptionRepository.updateConfirmation(subscription.id);
+    throw new BadRequestError('Token already used');
   }
 
   async unsubscribeByToken({ token }: TokenParamDto): Promise<void> {
@@ -91,7 +88,7 @@ export class SubscriptionService {
         subscription.unsubscribeToken,
       );
 
-      await this.emailService.sendSubscriptionConfirmationEmail(
+      await this.notificationPort.sendConfirmation(
         email,
         repo,
         confirmationUrl,
