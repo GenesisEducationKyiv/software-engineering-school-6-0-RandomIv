@@ -10,10 +10,7 @@ const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
 export class HttpNotificationProvider implements NotificationPort {
-  constructor(
-    private readonly notificationUrl: string,
-    private readonly apiKey: string,
-  ) {}
+  constructor(private readonly notificationUrl: string) {}
 
   async sendConfirmation(
     to: string,
@@ -52,10 +49,7 @@ export class HttpNotificationProvider implements NotificationPort {
       try {
         await httpClient<void>(url, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-internal-key': this.apiKey,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),
           timeoutMs: REQUEST_TIMEOUT_MS,
         });

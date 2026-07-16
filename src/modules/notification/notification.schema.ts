@@ -1,13 +1,13 @@
 import { z } from 'zod';
 
-export const sendConfirmationSchema = z.object({
+export const confirmationSchema = z.object({
   to: z.email(),
   repo: z.string().min(1),
   confirmationUrl: z.url(),
   unsubscribeUrl: z.url(),
 });
 
-export const sendReleaseSchema = z.object({
+export const releaseSchema = z.object({
   to: z.email(),
   repo: z.string().min(1),
   tag: z.string().min(1),
@@ -15,5 +15,5 @@ export const sendReleaseSchema = z.object({
   unsubscribeUrl: z.url(),
 });
 
-export type SendConfirmationDto = z.infer<typeof sendConfirmationSchema>;
-export type SendReleaseDto = z.infer<typeof sendReleaseSchema>;
+export type ConfirmationDto = z.infer<typeof confirmationSchema>;
+export type ReleaseDto = z.infer<typeof releaseSchema>;

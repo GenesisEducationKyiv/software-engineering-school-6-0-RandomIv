@@ -1,0 +1,226 @@
+import amqp from 'amqplib';
+import { startMqConsumer } from '../../../../src/modules/notification/rabbitmq/rabbitmq.consumer';
+import {
+  NOTIFICATION_DLQ,
+  NOTIFICATION_DLX,
+  NOTIFICATION_QUEUE,
+} from '../../../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import type { NotificationChannel } from '../../../../src/modules/notification/delivery/notification-channel.interface';
+import type { NotificationMessage } from '../../../../src/modules/notification/rabbitmq/rabbitmq.contract';
+
+jest.mock('amqplib');
+
+const makeMessage = (
+  payload: NotificationMessage,
+  redelivered = false,
+  messageId?: string,
+): amqp.ConsumeMessage =>
+  ({
+    content: Buffer.from(JSON.stringify(payload)),
+    fields: { redelivered },
+    properties: { messageId },
+  }) as unknown as amqp.ConsumeMessage;
+
+const makeRawMessage = (
+  content: string,
+  redelivered = false,
+): amqp.ConsumeMessage =>
+  ({
+    content: Buffer.from(content),
+    fields: { redelivered },
+    properties: {},
+  }) as unknown as amqp.ConsumeMessage;
+
+describe('rabbitmq.consumer', () => {
+  const ack = jest.fn();
+  const nack = jest.fn();
+  const consume = jest.fn();
+
+  const mqChannel = {
+    assertExchange: jest.fn().mockResolvedValue(undefined),
+    assertQueue: jest.fn().mockResolvedValue(undefined),
+    bindQueue: jest.fn().mockResolvedValue(undefined),
+    prefetch: jest.fn(),
+    consume,
+    ack,
+    nack,
+  };
+
+  const model = {
+    createChannel: jest.fn().mockResolvedValue(mqChannel),
+    close: jest.fn().mockResolvedValue(undefined),
+    on: jest.fn(),
+  };
+
+  const channel: jest.Mocked<NotificationChannel> = {
+    sendConfirmation: jest.fn().mockResolvedValue(undefined),
+    sendRelease: jest.fn().mockResolvedValue(undefined),
+  };
+
+  beforeEach(() => {
+    (amqp.connect as jest.Mock).mockResolvedValue(model);
+  });
+
+  const setup = async () => {
+    await startMqConsumer('amqp://localhost', channel);
+    const handler: (msg: amqp.ConsumeMessage | null) => Promise<void> =
+      consume.mock.calls[0][1];
+    return handler;
+  };
+
+  it('asserts durable queue with a dead-letter exchange and sets prefetch on startup', async () => {
+    await startMqConsumer('amqp://localhost', channel);
+
+    expect(mqChannel.assertExchange).toHaveBeenCalledWith(
+      NOTIFICATION_DLX,
+      'fanout',
+      { durable: true },
+    );
+    expect(mqChannel.assertQueue).toHaveBeenCalledWith(NOTIFICATION_DLQ, {
+      durable: true,
+    });
+    expect(mqChannel.bindQueue).toHaveBeenCalledWith(
+      NOTIFICATION_DLQ,
+      NOTIFICATION_DLX,
+      '',
+    );
+    expect(mqChannel.assertQueue).toHaveBeenCalledWith(NOTIFICATION_QUEUE, {
+      durable: true,
+      arguments: { 'x-dead-letter-exchange': NOTIFICATION_DLX },
+    });
+    expect(mqChannel.prefetch).toHaveBeenCalledWith(1);
+  });
+
+  it('routes confirmation message to sendConfirmation and acks', async () => {
+    const handler = await setup();
+    const payload: NotificationMessage = {
+      type: 'confirmation',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: 'https://app.example.com/confirm/token',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    };
+
+    await handler(makeMessage(payload));
+
+    expect(channel.sendConfirmation).toHaveBeenCalledWith(
+      'user@example.com',
+      'owner/repo',
+      'https://app.example.com/confirm/token',
+      'https://app.example.com/unsubscribe/token',
+    );
+    expect(channel.sendRelease).not.toHaveBeenCalled();
+    expect(ack).toHaveBeenCalledTimes(1);
+    expect(nack).not.toHaveBeenCalled();
+  });
+
+  it('routes release message to sendRelease and acks', async () => {
+    const handler = await setup();
+    const payload: NotificationMessage = {
+      type: 'release',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      tag: 'v2.0.0',
+      releaseUrl: 'https://github.com/owner/repo/releases/tag/v2.0.0',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    };
+
+    await handler(makeMessage(payload));
+
+    expect(channel.sendRelease).toHaveBeenCalledWith(
+      'user@example.com',
+      'owner/repo',
+      'v2.0.0',
+      'https://github.com/owner/repo/releases/tag/v2.0.0',
+      'https://app.example.com/unsubscribe/token',
+    );
+    expect(channel.sendConfirmation).not.toHaveBeenCalled();
+    expect(ack).toHaveBeenCalledTimes(1);
+    expect(nack).not.toHaveBeenCalled();
+  });
+
+  it('nacks with requeue on first delivery failure', async () => {
+    channel.sendConfirmation.mockRejectedValueOnce(new Error('SMTP error'));
+    const handler = await setup();
+    const payload: NotificationMessage = {
+      type: 'confirmation',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: 'https://app.example.com/confirm/token',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    };
+
+    await handler(makeMessage(payload, false));
+
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, true);
+  });
+
+  it('nacks without requeue when message was already redelivered', async () => {
+    channel.sendConfirmation.mockRejectedValueOnce(new Error('SMTP error'));
+    const handler = await setup();
+    const payload: NotificationMessage = {
+      type: 'confirmation',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: 'https://app.example.com/confirm/token',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    };
+
+    await handler(makeMessage(payload, true));
+
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
+  it('skips redelivered duplicate by messageId without resending', async () => {
+    const handler = await setup();
+    const payload: NotificationMessage = {
+      type: 'confirmation',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: 'https://app.example.com/confirm/token',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    };
+
+    await handler(makeMessage(payload, false, 'msg-1'));
+    await handler(makeMessage(payload, true, 'msg-1'));
+
+    expect(channel.sendConfirmation).toHaveBeenCalledTimes(1);
+    expect(ack).toHaveBeenCalledTimes(2);
+    expect(nack).not.toHaveBeenCalled();
+  });
+
+  it('rejects an unparseable message straight to DLQ without requeue', async () => {
+    const handler = await setup();
+
+    await handler(makeRawMessage('not-json'));
+
+    expect(channel.sendConfirmation).not.toHaveBeenCalled();
+    expect(channel.sendRelease).not.toHaveBeenCalled();
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
+  it('rejects a schema-invalid message to DLQ without requeue even on first delivery', async () => {
+    const handler = await setup();
+
+    await handler(makeRawMessage(JSON.stringify({ type: 'unknown' }), false));
+
+    expect(channel.sendConfirmation).not.toHaveBeenCalled();
+    expect(channel.sendRelease).not.toHaveBeenCalled();
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
+  it('ignores null message', async () => {
+    const handler = await setup();
+
+    await handler(null);
+
+    expect(channel.sendConfirmation).not.toHaveBeenCalled();
+    expect(channel.sendRelease).not.toHaveBeenCalled();
+    expect(ack).not.toHaveBeenCalled();
+    expect(nack).not.toHaveBeenCalled();
+  });
+});

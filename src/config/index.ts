@@ -8,6 +8,7 @@ import { databaseSchema } from './database.config';
 import { grpcSchema } from './grpc.config';
 import { githubSchema } from './github.config';
 import { notificationSchema } from './notification.config';
+import { rabbitmqSchema } from './rabbitmq.config';
 import { logger } from '../core/logger';
 
 const schema = appSchema
@@ -17,7 +18,8 @@ const schema = appSchema
   .extend(databaseSchema.shape)
   .extend(grpcSchema.shape)
   .extend(githubSchema.shape)
-  .extend(notificationSchema.shape);
+  .extend(notificationSchema.shape)
+  .extend(rabbitmqSchema.shape);
 
 const parsed = schema.safeParse(process.env);
 
