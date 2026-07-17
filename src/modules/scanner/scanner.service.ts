@@ -1,5 +1,5 @@
 import { logger } from '../../core/logger';
-import type { NotificationPort } from '../../common/interfaces/notification-port.interface';
+import type { ReleaseNotificationPort } from '../../common/interfaces/release-notification-port.interface';
 import type { RepositoryRepository } from '../repository/repository.repository';
 import type { RepositoryWithSubscriptionsEntity } from '../repository/entities/repository-with-subscription.entity';
 import type { SubscriptionEntity } from '../subscription/entities/subscription.entity';
@@ -13,7 +13,7 @@ import { AppUrls } from '../../common/utils/url-builder.util';
 export class ScannerService {
   constructor(
     private readonly releaseProvider: ReleaseProvider,
-    private readonly notificationPort: NotificationPort,
+    private readonly notificationPort: ReleaseNotificationPort,
     private readonly repositoryRepository: RepositoryRepository,
     private readonly appBaseUrl: string,
   ) {}

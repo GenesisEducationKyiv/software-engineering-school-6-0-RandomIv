@@ -6,11 +6,8 @@ import { API_KEY_HEADER } from '../../src/common/middlewares/api-key.middleware'
 import { AppUrls } from '../../src/common/utils/url-builder.util';
 import { config } from '../../src/config';
 import prisma from '../../src/core/db/db';
-import {
-  NOTIFICATION_QUEUE,
-  setupNotificationTopology,
-} from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
-import type { NotificationMessage } from '../../src/modules/notification/rabbitmq/rabbitmq.contract';
+import { SEND_CONFIRMATION_COMMAND_QUEUE } from '../../src/modules/notification/rabbitmq/saga/saga.contract';
+import type { SendConfirmationCommand } from '../../src/modules/notification/rabbitmq/saga/saga.contract';
 
 const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 const TEST_API_KEY = config.API_KEY;
@@ -19,7 +16,7 @@ let app: ReturnType<typeof createApp>;
 let mqConnection: amqp.ChannelModel;
 let mqChannel: amqp.Channel;
 
-const consumeNextMessage = (): Promise<NotificationMessage> =>
+const consumeNextCommand = (): Promise<SendConfirmationCommand> =>
   new Promise((resolve, reject) => {
     const timeout = setTimeout(
       () => reject(new Error('Timed out waiting for MQ message')),
@@ -27,12 +24,14 @@ const consumeNextMessage = (): Promise<NotificationMessage> =>
     );
     mqChannel
       .consume(
-        NOTIFICATION_QUEUE,
+        SEND_CONFIRMATION_COMMAND_QUEUE,
         (msg: amqp.ConsumeMessage | null) => {
           if (!msg) return;
           clearTimeout(timeout);
           mqChannel.ack(msg);
-          resolve(JSON.parse(msg.content.toString()) as NotificationMessage);
+          resolve(
+            JSON.parse(msg.content.toString()) as SendConfirmationCommand,
+          );
         },
         { noAck: false },
       )
@@ -49,11 +48,13 @@ describe('subscription routes integration', () => {
 
     mqConnection = await amqp.connect(config.RABBITMQ_URL);
     mqChannel = await mqConnection.createChannel();
-    await setupNotificationTopology(mqChannel);
+    await mqChannel.assertQueue(SEND_CONFIRMATION_COMMAND_QUEUE, {
+      durable: true,
+    });
   });
 
   afterAll(async () => {
-    await mqChannel.deleteQueue(NOTIFICATION_QUEUE);
+    await mqChannel.deleteQueue(SEND_CONFIRMATION_COMMAND_QUEUE);
     await mqConnection.close();
   });
 
@@ -112,7 +113,7 @@ describe('subscription routes integration', () => {
     );
   });
 
-  it('POST /api/subscribe creates subscription and publishes confirmation to MQ', async () => {
+  it('POST /api/subscribe creates subscription and publishes SendConfirmationEmail saga command', async () => {
     jest.spyOn(globalThis, 'fetch').mockImplementation(() =>
       Promise.resolve(
         new Response(JSON.stringify({}), {
@@ -122,7 +123,7 @@ describe('subscription routes integration', () => {
       ),
     );
 
-    const messagePromise = consumeNextMessage();
+    const commandPromise = consumeNextCommand();
 
     const response = await request(app)
       .post('/api/subscribe')
@@ -146,9 +147,9 @@ describe('subscription routes integration', () => {
     if (!subscription) throw new Error('Subscription was not created');
     expect(subscription.repository.fullName).toBe('owner/repo');
 
-    const message = await messagePromise;
-    expect(message).toEqual({
-      type: 'confirmation',
+    const command = await commandPromise;
+    expect(command).toEqual({
+      subscriptionId: subscription.id,
       to: 'user@example.com',
       repo: 'owner/repo',
       confirmationUrl: AppUrls.confirm(

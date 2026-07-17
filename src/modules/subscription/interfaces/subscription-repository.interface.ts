@@ -14,6 +14,8 @@ export interface SubscriptionRepositoryInterface {
 
   deleteByUnsubscribeToken(token: string): Promise<number>;
 
+  deleteById(id: string): Promise<number>;
+
   findByEmail(
     email: string,
     confirmedOnly?: boolean,

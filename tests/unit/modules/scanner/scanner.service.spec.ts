@@ -5,7 +5,7 @@ import { ScannerService } from '../../../../src/modules/scanner/scanner.service'
 import { AppUrls } from '../../../../src/common/utils/url-builder.util';
 import type { RepositoryRepository } from '../../../../src/modules/repository/repository.repository';
 import type { ReleaseProvider } from '../../../../src/modules/scanner/interfaces/release-provider.interface';
-import type { NotificationPort } from '../../../../src/common/interfaces/notification-port.interface';
+import type { ReleaseNotificationPort } from '../../../../src/common/interfaces/release-notification-port.interface';
 
 const createSubscription = (id: string, email: string): SubscriptionEntity => ({
   id,
@@ -37,8 +37,7 @@ describe('scanner.service', () => {
   const releaseProvider: jest.Mocked<ReleaseProvider> = {
     getLatestRelease: jest.fn(),
   };
-  const notificationPort: jest.Mocked<NotificationPort> = {
-    sendConfirmation: jest.fn(),
+  const notificationPort: jest.Mocked<ReleaseNotificationPort> = {
     sendRelease: jest.fn(),
   };
   const appBaseUrl = 'https://app.example.com';

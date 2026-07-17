@@ -1,4 +1,5 @@
-import type { NotificationPort } from '../../../common/interfaces/notification-port.interface';
+import type { ConfirmationPort } from '../../../common/interfaces/confirmation-port.interface';
+import type { ReleaseNotificationPort } from '../../../common/interfaces/release-notification-port.interface';
 import { httpClient } from '../../../common/utils/http-client.util';
 import { AppError } from '../../../common/errors';
 
@@ -9,10 +10,13 @@ const RETRY_DELAY_MS = 500;
 const sleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-export class HttpNotificationProvider implements NotificationPort {
+export class HttpNotificationProvider
+  implements ConfirmationPort, ReleaseNotificationPort
+{
   constructor(private readonly notificationUrl: string) {}
 
   async sendConfirmation(
+    _subscriptionId: string,
     to: string,
     repo: string,
     confirmationUrl: string,

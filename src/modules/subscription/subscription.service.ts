@@ -7,18 +7,17 @@ import type { SubscriptionEntity } from './entities/subscription.entity';
 import type { SubscriptionWithRepositoryEntity } from './entities/subscription-with-repository.entity';
 import type { RepositoryRepository } from '../repository/repository.repository';
 import { BadRequestError, NotFoundError } from '../../common/errors';
-import type { NotificationPort } from '../../common/interfaces/notification-port.interface';
 import type { RepositoryProvider } from './interfaces/repository-provider.interface';
 import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
+import type { SubscriptionSagaStarter } from './interfaces/subscription-saga-starter.interface';
 import { AppUrls } from '../../common/utils/url-builder.util';
-import { SubscriptionNotificationError } from './subscription.error';
 
 export class SubscriptionService {
   constructor(
     private readonly subscriptionRepository: SubscriptionRepositoryInterface,
     private readonly repositoryProvider: RepositoryProvider,
     private readonly repositoryRepository: RepositoryRepository,
-    private readonly notificationPort: NotificationPort,
+    private readonly sagaStarter: SubscriptionSagaStarter,
     private readonly appBaseUrl: string,
   ) {}
 
@@ -34,7 +33,19 @@ export class SubscriptionService {
       repositoryId: repoRecord.id,
     });
 
-    await this.notifyAndHandleRollback(subscription, repo, email);
+    await this.sagaStarter.start({
+      subscriptionId: subscription.id,
+      to: email,
+      repo,
+      confirmationUrl: AppUrls.confirm(
+        this.appBaseUrl,
+        subscription.confirmationToken,
+      ),
+      unsubscribeUrl: AppUrls.unsubscribe(
+        this.appBaseUrl,
+        subscription.unsubscribeToken,
+      ),
+    });
 
     return subscription;
   }
@@ -70,35 +81,6 @@ export class SubscriptionService {
     const repoExists = await this.repositoryProvider.checkRepoExists(repo);
     if (!repoExists) {
       throw new NotFoundError('Repository not found on GitHub');
-    }
-  }
-
-  private async notifyAndHandleRollback(
-    subscription: SubscriptionEntity,
-    repo: string,
-    email: string,
-  ): Promise<void> {
-    try {
-      const confirmationUrl = AppUrls.confirm(
-        this.appBaseUrl,
-        subscription.confirmationToken,
-      );
-      const unsubscribeUrl = AppUrls.unsubscribe(
-        this.appBaseUrl,
-        subscription.unsubscribeToken,
-      );
-
-      await this.notificationPort.sendConfirmation(
-        email,
-        repo,
-        confirmationUrl,
-        unsubscribeUrl,
-      );
-    } catch {
-      await this.subscriptionRepository.deleteByUnsubscribeToken(
-        subscription.unsubscribeToken,
-      );
-      throw new SubscriptionNotificationError();
     }
   }
 }

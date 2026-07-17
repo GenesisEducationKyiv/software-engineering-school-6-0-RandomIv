@@ -1,31 +1,28 @@
-import amqp from 'amqplib';
-import { randomUUID } from 'node:crypto';
-import type { NotificationPort } from '../../../common/interfaces/notification-port.interface';
-import { logger } from '../../../core/logger';
-import {
-  NOTIFICATION_QUEUE,
-  type NotificationMessage,
-  setupNotificationTopology,
-} from './rabbitmq.contract';
+import type { ConfirmationPort } from '../../../common/interfaces/confirmation-port.interface';
+import type { ReleaseNotificationPort } from '../../../common/interfaces/release-notification-port.interface';
+import type { MessagePublisher } from '../../../common/interfaces/message-publisher.interface';
+import type { NotificationMessage } from './rabbitmq.contract';
 
-export class MqNotificationProvider implements NotificationPort {
-  private model: amqp.RecoveringChannelModel | null = null;
-  private channel: amqp.Channel | null = null;
-
-  constructor(private readonly rabbitmqUrl: string) {}
+export class RabbitMqProvider
+  implements ConfirmationPort, ReleaseNotificationPort
+{
+  constructor(
+    private readonly publisher: MessagePublisher<NotificationMessage>,
+  ) {}
 
   async sendConfirmation(
+    id: string,
     to: string,
     repo: string,
-    confirmationUrl: string,
-    unsubscribeUrl: string,
+    confUrl: string,
+    unsubUrl: string,
   ): Promise<void> {
-    await this.publish({
+    await this.publisher.publish({
       type: 'confirmation',
       to,
       repo,
-      confirmationUrl,
-      unsubscribeUrl,
+      confirmationUrl: confUrl,
+      unsubscribeUrl: unsubUrl,
     });
   }
 
@@ -34,43 +31,15 @@ export class MqNotificationProvider implements NotificationPort {
     repo: string,
     tag: string,
     releaseUrl: string,
-    unsubscribeUrl: string,
+    unsubUrl: string,
   ): Promise<void> {
-    await this.publish({
+    await this.publisher.publish({
       type: 'release',
       to,
       repo,
       tag,
       releaseUrl,
-      unsubscribeUrl,
+      unsubscribeUrl: unsubUrl,
     });
-  }
-
-  private async publish(message: NotificationMessage): Promise<void> {
-    const ch = await this.getChannel();
-    ch.sendToQueue(NOTIFICATION_QUEUE, Buffer.from(JSON.stringify(message)), {
-      persistent: true,
-      messageId: randomUUID(),
-    });
-    logger.info({ type: message.type }, '[MQ] Message published');
-  }
-
-  private async getChannel(): Promise<amqp.Channel> {
-    if (this.channel) return this.channel;
-
-    if (!this.model) {
-      this.model = await amqp.connect(this.rabbitmqUrl, { recovery: true });
-    }
-
-    const ch = await this.model.createChannel();
-    await setupNotificationTopology(ch);
-    ch.on('error', () => {
-      this.channel = null;
-    });
-    ch.on('close', () => {
-      this.channel = null;
-    });
-    this.channel = ch;
-    return this.channel;
   }
 }

@@ -13,6 +13,7 @@ describe('rest/http.provider', () => {
 
   it('POSTs to /send-confirmation with correct body', async () => {
     await provider.sendConfirmation(
+      'sub-1',
       'user@example.com',
       'owner/repo',
       'https://app.example.com/confirm/token',
@@ -60,6 +61,7 @@ describe('rest/http.provider', () => {
 
     await expect(
       provider.sendConfirmation(
+        'sub-1',
         'user@example.com',
         'owner/repo',
         'https://app.example.com/confirm/token',

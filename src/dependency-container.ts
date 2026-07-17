@@ -4,7 +4,7 @@ import { PrismaRepositoryRepository } from './modules/repository/repository.repo
 import { ScannerService } from './modules/scanner/scanner.service';
 import { SubscriptionService } from './modules/subscription/subscription.service';
 import { PrismaSubscriptionRepository } from './modules/subscription/subscription.repository';
-import { MqNotificationProvider } from './modules/notification/rabbitmq/rabbitmq.provider';
+import { SubscriptionSagaOrchestrator } from './modules/subscription/saga/subscription-saga.orchestrator';
 import { ReleaseCheckScheduler } from './schedulers/release-check.scheduler';
 import { ReleaseNotifierHandlers } from './core/grpc/grpc.types';
 
@@ -23,20 +23,45 @@ import { HttpGitHubClient } from './integrations/github/http-github.client';
 import { CachedGitHubClient } from './integrations/github/cached-github.client';
 import { GitHubService } from './integrations/github/github.service';
 
+import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
+import { RabbitMqProvider } from './modules/notification/rabbitmq/rabbitmq.provider';
+import { NOTIFICATION_QUEUE } from './modules/notification/rabbitmq/rabbitmq.contract';
+import type { NotificationMessage } from './modules/notification/rabbitmq/rabbitmq.contract';
+import {
+  SEND_CONFIRMATION_COMMAND_QUEUE,
+  type SendConfirmationCommand,
+} from './modules/notification/rabbitmq/saga/saga.contract';
+
 export interface DependencyContainer {
   apiController: SubscriptionRestController;
   webController: SubscriptionWebController;
   grpcHandlers: ReleaseNotifierHandlers;
   scheduler: ReleaseCheckScheduler;
+  subscriptionSagaOrchestrator: SubscriptionSagaOrchestrator;
 }
 
 export const createDependencyContainer = (): DependencyContainer => {
   const appBaseUrl = config.APP_BASE_URL ?? `http://localhost:${config.PORT}`;
 
-  const notificationPort = new MqNotificationProvider(config.RABBITMQ_URL);
+  const plainPublisher = new RabbitMessagePublisher<NotificationMessage>(
+    config.RABBITMQ_URL,
+    NOTIFICATION_QUEUE,
+    { deadLetter: true },
+  );
+  const sagaPublisher = new RabbitMessagePublisher<SendConfirmationCommand>(
+    config.RABBITMQ_URL,
+    SEND_CONFIRMATION_COMMAND_QUEUE,
+  );
+
+  const rabbitMqProvider = new RabbitMqProvider(plainPublisher);
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
+
+  const subscriptionSagaOrchestrator = new SubscriptionSagaOrchestrator(
+    sagaPublisher,
+    subscriptionRepository,
+  );
 
   const pureHttpGitHubClient = new HttpGitHubClient();
   const cachedGitHubClient = new CachedGitHubClient(
@@ -52,27 +77,24 @@ export const createDependencyContainer = (): DependencyContainer => {
     subscriptionRepository,
     repositoryProvider,
     repositoryRepository,
-    notificationPort,
+    subscriptionSagaOrchestrator,
     appBaseUrl,
   );
 
   const scannerService = new ScannerService(
     releaseProvider,
-    notificationPort,
+    rabbitMqProvider,
     repositoryRepository,
     appBaseUrl,
   );
 
   const apiController = new SubscriptionRestController(subscriptionService);
   const webController = new SubscriptionWebController(subscriptionService);
-
   const grpcController = new SubscriptionGrpcController(
     subscriptionService,
     config.API_KEY,
   );
-
   const grpcHandlers = createSubscriptionGrpcHandlers(grpcController);
-
   const scheduler = new ReleaseCheckScheduler(
     scannerService,
     config.RELEASE_CHECK_CRON,
@@ -83,5 +105,6 @@ export const createDependencyContainer = (): DependencyContainer => {
     webController,
     grpcHandlers,
     scheduler,
+    subscriptionSagaOrchestrator,
   };
 };

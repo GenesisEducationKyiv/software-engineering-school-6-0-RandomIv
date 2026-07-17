@@ -11,8 +11,23 @@ import {
   NotificationRestController,
   createNotificationRouter,
 } from './modules/notification/rest/rest.controller';
-import { startMqConsumer } from './modules/notification/rabbitmq/rabbitmq.consumer';
 import { logger } from './core/logger';
+import { RabbitConsumer } from './core/rabbitmq/rabbit-consumer';
+import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
+import { NotificationMessageHandler } from './modules/notification/rabbitmq/rabbitmq.handler';
+import { SendConfirmationCommandHandler } from './modules/notification/rabbitmq/saga/saga.handler';
+import {
+  NOTIFICATION_QUEUE,
+  notificationMessageSchema,
+  type NotificationMessage,
+} from './modules/notification/rabbitmq/rabbitmq.contract';
+import {
+  SEND_CONFIRMATION_COMMAND_QUEUE,
+  SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
+  sendConfirmationCommandSchema,
+  type SendConfirmationCommand,
+  type SubscriptionNotificationEvent,
+} from './modules/notification/rabbitmq/saga/saga.contract';
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -61,7 +76,34 @@ const bootstrap = async (): Promise<void> => {
     s.once('error', reject);
   });
 
-  const mqModel = await startMqConsumer(config.RABBITMQ_URL, channel);
+  const notificationConsumer = new RabbitConsumer<NotificationMessage>(
+    config.RABBITMQ_URL,
+    NOTIFICATION_QUEUE,
+    new NotificationMessageHandler(channel),
+    {
+      deadLetter: true,
+      parseMessage: (raw) => notificationMessageSchema.parse(raw),
+    },
+  );
+  const mqModel = await notificationConsumer.start();
+
+  const subscriptionEventPublisher =
+    new RabbitMessagePublisher<SubscriptionNotificationEvent>(
+      config.RABBITMQ_URL,
+      SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
+    );
+
+  const confirmationCommandsConsumer =
+    new RabbitConsumer<SendConfirmationCommand>(
+      config.RABBITMQ_URL,
+      SEND_CONFIRMATION_COMMAND_QUEUE,
+      new SendConfirmationCommandHandler(channel, subscriptionEventPublisher),
+      {
+        maxAttempts: 5,
+        parseMessage: (raw) => sendConfirmationCommandSchema.parse(raw),
+      },
+    );
+  const confirmationCommandsModel = await confirmationCommandsConsumer.start();
 
   let isShuttingDown = false;
 
@@ -82,6 +124,7 @@ const bootstrap = async (): Promise<void> => {
           server.close((err) => (err ? reject(err) : resolve())),
         ),
         mqModel.close(),
+        confirmationCommandsModel.close(),
       ]);
       clearTimeout(forceExit);
       logger.info('Notification service stopped.');
