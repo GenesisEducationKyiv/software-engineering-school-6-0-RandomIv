@@ -95,7 +95,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "(sum(rate(http_requests_total{status_code=~\"5..\"}[1m])) / sum(rate(http_requests_total[1m]))) * 100",
+          "expr": "(sum(rate(http_requests_total{status_code!~\"2..\"}[1m])) / sum(rate(http_requests_total[1m]))) * 100",
           "legendFormat": "Error %",
           "range": true,
           "refId": "A"
@@ -129,7 +129,7 @@
             "uid": "prometheus"
           },
           "editorMode": "code",
-          "expr": "(sum(rate(grpc_requests_total{status_code=~\"2|13|14|15\"}[1m])) / sum(rate(grpc_requests_total[1m]))) * 100",
+          "expr": "(sum(rate(grpc_requests_total{status_code!=\"0\"}[1m])) / sum(rate(grpc_requests_total[1m]))) * 100",
           "legendFormat": "Failure %",
           "range": true,
           "refId": "A"
