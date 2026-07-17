@@ -24,4 +24,5 @@ jobs:
       - run: npm run proto:lint
       - run: npm run proto:generate
       - run: npm run lint
+      - run: npm run arch:check
       - run: npx tsc --noEmit

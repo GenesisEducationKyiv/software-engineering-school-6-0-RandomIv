@@ -1,6 +1,6 @@
 ## 🧪 Testing & Quality Assurance
 
-This project implements a multi-layered testing strategy (Unit, Integration, and End-to-End) along with strict static analysis tools to ensure code quality and system reliability.
+This project implements a multi-layered testing strategy (Unit, Integration, and End-to-End) along with strict static analysis and architecture/dependency checks to ensure code quality and system reliability.
 
 ### 📌 Prerequisites
 
@@ -50,7 +50,10 @@ npm run test:unit
 
 Integration tests verify the communication between the application layer and real infrastructure components.
 
-Running the command below will spin up isolated, ephemeral **PostgreSQL** (mapped to port `5433`) and **Redis** (mapped to port `6380`) containers, automatically apply database migrations, run the test suites, and safely wipe out the containers afterward:
+Running the command below will spin up isolated, ephemeral **PostgreSQL** (mapped to port `5433`),
+**Redis** (mapped to port `6380`) and **RabbitMQ** (mapped to port `5673`) containers, automatically
+apply database migrations, run the test suites, and safely wipe out the containers afterward. The
+RabbitMQ container is exercised directly by the notification queue and saga round-trip specs.
 
 ```bash
 # Spin up integration environment, run migrations, execute tests, and tear down
@@ -64,7 +67,13 @@ npm run test:integration:env
 
 E2E tests simulate complete real-world user journeys using Playwright and a mocked SMTP environment via MailHog.
 
-This process builds the actual production-ready Docker image for the application, spins it up alongside isolated **PostgreSQL** (mapped to port `5434`) and **Redis** containers inside a dedicated Docker network, and fires Playwright browser actions against it.
+This process builds the two production-ready Docker images that make up the system — the **API
+service** (`Dockerfile`) and the **notification microservice** (`Dockerfile.notification`) — and
+spins them up alongside isolated **PostgreSQL** (mapped to port `5434`), **Redis**, **RabbitMQ**
+(which carries the confirmation saga; release notifications instead use a direct gRPC call) and
+**MailHog** containers inside a dedicated Docker network, then fires Playwright browser actions
+against the API service. A confirmation email sent during a test round-trips through the real saga:
+API service → RabbitMQ → notification microservice → MailHog.
 
 ```bash
 # Install required Playwright browser binaries and system dependencies
@@ -84,3 +93,23 @@ npx playwright show-report
 
 ```
 
+---
+
+### 5. Architecture & Dependency Checks
+
+Beyond runtime tests, the project enforces its layered architecture statically with [dependency-cruiser](https://github.com/sverweij/dependency-cruiser). This guards the boundaries described in [architecture.md](architecture.md): infrastructure (`core/`, `integrations/`, `config/`, `views/`) and the foundational `common/`/`config/` layers must not reach into domain `modules/`, domain modules stay decoupled at runtime (only `type`-only imports may cross between them), and no circular dependencies are allowed.
+
+```bash
+# Validate all dependency-boundary rules against src/
+npm run arch:check
+
+```
+
+`arch:check` runs with `--output-type err`, so any violation of an `error`-severity rule exits non-zero. It runs in the **Lint** CI workflow (`.github/workflows/lint.yml`) on every pull request, meaning a broken boundary fails the build just like a failing test. Orphan files (imported by nothing) are reported as warnings and do not fail the check.
+
+To regenerate the Mermaid dependency graph in `docs/architecture-graph.mmd`:
+
+```bash
+npm run arch:graph
+
+```
