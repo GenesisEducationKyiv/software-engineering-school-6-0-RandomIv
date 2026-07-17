@@ -25,7 +25,6 @@ import { GitHubService } from './integrations/github/github.service';
 
 import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
 import { RabbitMqProvider } from './modules/notification/rabbitmq/rabbitmq.provider';
-import { SagaConfirmationProvider } from './modules/notification/rabbitmq/saga/saga.provider';
 import { NOTIFICATION_QUEUE } from './modules/notification/rabbitmq/rabbitmq.contract';
 import type { NotificationMessage } from './modules/notification/rabbitmq/rabbitmq.contract';
 import {
@@ -55,16 +54,12 @@ export const createDependencyContainer = (): DependencyContainer => {
   );
 
   const rabbitMqProvider = new RabbitMqProvider(plainPublisher);
-  const sagaConfirmationProvider = new SagaConfirmationProvider(sagaPublisher);
-
-  // Варіант А (без Саги): const confirmationPort = rabbitMqProvider;
-  // Варіант Б (із Сагою):
-  const confirmationPort = sagaConfirmationProvider;
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
 
   const subscriptionSagaOrchestrator = new SubscriptionSagaOrchestrator(
+    sagaPublisher,
     subscriptionRepository,
   );
 
@@ -82,7 +77,7 @@ export const createDependencyContainer = (): DependencyContainer => {
     subscriptionRepository,
     repositoryProvider,
     repositoryRepository,
-    confirmationPort,
+    subscriptionSagaOrchestrator,
     appBaseUrl,
   );
 
