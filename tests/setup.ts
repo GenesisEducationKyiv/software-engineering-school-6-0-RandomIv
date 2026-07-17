@@ -1,0 +1,1 @@
+import './mocks/prisma.mock';

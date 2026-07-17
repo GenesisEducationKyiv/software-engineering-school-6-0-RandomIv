@@ -1,0 +1,42 @@
+syntax = "proto3";
+
+package release_notifier;
+
+service ReleaseNotifier {
+  rpc Subscribe(SubscribeRequest) returns (OperationResponse);
+  rpc Confirm(ConfirmRequest) returns (OperationResponse);
+  rpc Unsubscribe(UnsubscribeRequest) returns (OperationResponse);
+  rpc GetSubscriptions(GetSubscriptionsRequest) returns (GetSubscriptionsResponse);
+}
+
+message SubscribeRequest {
+  string email = 1;
+  string repo = 2;
+}
+
+message ConfirmRequest {
+  string token = 1;
+}
+
+message UnsubscribeRequest {
+  string token = 1;
+}
+
+message GetSubscriptionsRequest {
+  string email = 1;
+}
+
+message OperationResponse {
+  string message = 1;
+}
+
+message SubscriptionItem {
+  string email = 1;
+  string repo = 2;
+  bool confirmed = 3;
+  optional string last_seen_tag = 4;
+}
+
+message GetSubscriptionsResponse {
+  repeated SubscriptionItem subscriptions = 1;
+}
