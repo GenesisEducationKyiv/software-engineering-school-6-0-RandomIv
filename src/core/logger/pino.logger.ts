@@ -7,6 +7,10 @@ const isProd = process.env.NODE_ENV === 'production';
 const createPinoInstance = (): PinoInstance =>
   pino({
     level: isTest ? 'silent' : (process.env.LOG_LEVEL ?? 'info'),
+    redact: {
+      paths: ['*.token', '*.email'],
+      censor: '[Redacted]',
+    },
     ...(!isProd &&
       !isTest && {
         transport: {

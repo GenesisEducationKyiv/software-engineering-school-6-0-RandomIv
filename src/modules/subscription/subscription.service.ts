@@ -9,7 +9,7 @@ import type { RepositoryRepository } from '../repository/repository.repository';
 import { BadRequestError, NotFoundError } from '../../common/errors';
 import type { RepositoryProvider } from './interfaces/repository-provider.interface';
 import type { SubscriptionRepositoryInterface } from './interfaces/subscription-repository.interface';
-import type { ConfirmationPort } from '../../common/interfaces/confirmation-port.interface';
+import type { SubscriptionSagaStarter } from './interfaces/subscription-saga-starter.interface';
 import { AppUrls } from '../../common/utils/url-builder.util';
 
 export class SubscriptionService {
@@ -17,7 +17,7 @@ export class SubscriptionService {
     private readonly subscriptionRepository: SubscriptionRepositoryInterface,
     private readonly repositoryProvider: RepositoryProvider,
     private readonly repositoryRepository: RepositoryRepository,
-    private readonly notificationPort: ConfirmationPort,
+    private readonly sagaStarter: SubscriptionSagaStarter,
     private readonly appBaseUrl: string,
   ) {}
 
@@ -33,27 +33,19 @@ export class SubscriptionService {
       repositoryId: repoRecord.id,
     });
 
-    const confirmationUrl = AppUrls.confirm(
-      this.appBaseUrl,
-      subscription.confirmationToken,
-    );
-    const unsubscribeUrl = AppUrls.unsubscribe(
-      this.appBaseUrl,
-      subscription.unsubscribeToken,
-    );
-
-    try {
-      await this.notificationPort.sendConfirmation(
-        subscription.id,
-        email,
-        repo,
-        confirmationUrl,
-        unsubscribeUrl,
-      );
-    } catch (error) {
-      await this.subscriptionRepository.deleteById(subscription.id);
-      throw error;
-    }
+    await this.sagaStarter.start({
+      subscriptionId: subscription.id,
+      to: email,
+      repo,
+      confirmationUrl: AppUrls.confirm(
+        this.appBaseUrl,
+        subscription.confirmationToken,
+      ),
+      unsubscribeUrl: AppUrls.unsubscribe(
+        this.appBaseUrl,
+        subscription.unsubscribeToken,
+      ),
+    });
 
     return subscription;
   }

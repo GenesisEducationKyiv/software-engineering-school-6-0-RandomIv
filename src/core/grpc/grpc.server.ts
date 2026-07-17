@@ -9,7 +9,10 @@ import type {
   ReleaseNotifierHandlers,
 } from './grpc.types';
 
-const PROTO_PATH = path.resolve(process.cwd(), 'proto/release_notifier.proto');
+const PROTO_PATH = path.resolve(
+  process.cwd(),
+  'proto/release_notifier/release_notifier.proto',
+);
 
 const PROTO_LOADER_OPTIONS: protoLoader.Options = {
   keepCase: true,

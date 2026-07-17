@@ -3,18 +3,26 @@ import { RabbitMessagePublisher } from '../../../../src/core/rabbitmq/rabbit-pub
 
 jest.mock('amqplib');
 
+type SendCallback = (err?: unknown) => void;
+
 describe('rabbit-publisher', () => {
   const sendToQueue = jest.fn();
   const assertQueue = jest.fn();
   const channelOn = jest.fn();
-  const createChannel = jest.fn();
+  const createConfirmChannel = jest.fn();
 
   const channel = { assertQueue, sendToQueue, on: channelOn };
-  const model = { createChannel };
+  const model = { createConfirmChannel };
 
   beforeEach(() => {
     assertQueue.mockResolvedValue(undefined);
-    createChannel.mockResolvedValue(channel);
+    sendToQueue.mockImplementation(
+      (_queue: string, _content: Buffer, _options, callback?: SendCallback) => {
+        callback?.();
+        return true;
+      },
+    );
+    createConfirmChannel.mockResolvedValue(channel);
     (amqp.connect as jest.Mock).mockResolvedValue(model);
   });
 
@@ -37,13 +45,32 @@ describe('rabbit-publisher', () => {
         persistent: true,
         messageId: expect.stringMatching(/^[0-9a-f-]{36}$/),
       },
+      expect.any(Function),
+    );
+  });
+
+  it('rejects when the broker fails to confirm the message', async () => {
+    sendToQueue.mockImplementationOnce(
+      (_queue: string, _content: Buffer, _options, callback?: SendCallback) => {
+        callback?.(new Error('message nacked by broker'));
+        return true;
+      },
+    );
+
+    const publisher = new RabbitMessagePublisher<{ hello: string }>(
+      'amqp://localhost',
+      'my-queue',
+    );
+
+    await expect(publisher.publish({ hello: 'world' })).rejects.toThrow(
+      'message nacked by broker',
     );
   });
 
   it('asserts the dead-letter topology when deadLetter is enabled', async () => {
     const assertExchange = jest.fn().mockResolvedValue(undefined);
     const bindQueue = jest.fn().mockResolvedValue(undefined);
-    createChannel.mockResolvedValueOnce({
+    createConfirmChannel.mockResolvedValueOnce({
       assertQueue,
       assertExchange,
       bindQueue,
@@ -82,7 +109,7 @@ describe('rabbit-publisher', () => {
     await publisher.publish({ n: 2 });
 
     expect(amqp.connect).toHaveBeenCalledTimes(1);
-    expect(createChannel).toHaveBeenCalledTimes(1);
+    expect(createConfirmChannel).toHaveBeenCalledTimes(1);
     expect(sendToQueue).toHaveBeenCalledTimes(2);
   });
 
@@ -100,7 +127,7 @@ describe('rabbit-publisher', () => {
 
     await publisher.publish({ n: 2 });
 
-    expect(createChannel).toHaveBeenCalledTimes(2);
+    expect(createConfirmChannel).toHaveBeenCalledTimes(2);
   });
 
   it('opens a new channel after the previous one closes', async () => {
@@ -117,6 +144,6 @@ describe('rabbit-publisher', () => {
 
     await publisher.publish({ n: 2 });
 
-    expect(createChannel).toHaveBeenCalledTimes(2);
+    expect(createConfirmChannel).toHaveBeenCalledTimes(2);
   });
 });

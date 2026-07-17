@@ -8,6 +8,22 @@ const getCallPath = (call: grpc.ServerUnaryCall<unknown, unknown>): string => {
   return call.getPath();
 };
 
+const SENSITIVE_FIELD_PATTERN = /(^to$|^email$|url$|token|secret|password)/i;
+
+export const buildSafeRequest = (request: unknown): Record<string, string> => {
+  const safe: Record<string, string> = {};
+  if (!request || typeof request !== 'object') return safe;
+
+  for (const [key, value] of Object.entries(
+    request as Record<string, unknown>,
+  )) {
+    if (typeof value !== 'string') continue;
+    safe[key] = SENSITIVE_FIELD_PATTERN.test(key) ? '[REDACTED]' : value;
+  }
+
+  return safe;
+};
+
 export const withUnaryHandler = <TRequest, TResponse>(
   handler: (
     call: grpc.ServerUnaryCall<TRequest, TResponse>,
@@ -44,14 +60,7 @@ export const withUnaryHandler = <TRequest, TResponse>(
         requestCounter.inc(labels);
         stopTimer(labels);
 
-        const safeRequest: Record<string, string> = {};
-        if (call.request && typeof call.request === 'object') {
-          for (const [k, v] of Object.entries(
-            call.request as Record<string, unknown>,
-          )) {
-            if (typeof v === 'string') safeRequest[k] = v;
-          }
-        }
+        const safeRequest = buildSafeRequest(call.request);
 
         logger.error(
           {

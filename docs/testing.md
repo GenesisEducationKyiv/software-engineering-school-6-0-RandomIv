@@ -22,7 +22,7 @@ npm ci
 # 2. Generate Prisma Client (Required for types resolution)
 npm run db:generate
 
-# 3. Run ESLint checks
+# 3. Run ESLint and Prettier checks
 npm run lint
 
 # 4. Fix automatic formatting/linting issues (if any)
@@ -113,4 +113,3 @@ To regenerate the Mermaid dependency graph in `docs/architecture-graph.mmd`:
 npm run arch:graph
 
 ```
-

@@ -12,7 +12,7 @@ export interface RabbitMessagePublisherOptions {
 
 export class RabbitMessagePublisher<T> implements MessagePublisher<T> {
   private model: amqp.RecoveringChannelModel | null = null;
-  private channel: amqp.Channel | null = null;
+  private channel: amqp.ConfirmChannel | null = null;
 
   constructor(
     private readonly rabbitmqUrl: string,
@@ -22,20 +22,27 @@ export class RabbitMessagePublisher<T> implements MessagePublisher<T> {
 
   async publish(message: T): Promise<void> {
     const channel = await this.getChannel();
-    channel.sendToQueue(this.queue, Buffer.from(JSON.stringify(message)), {
-      persistent: true,
-      messageId: randomUUID(),
+    await new Promise<void>((resolve, reject) => {
+      channel.sendToQueue(
+        this.queue,
+        Buffer.from(JSON.stringify(message)),
+        { persistent: true, messageId: randomUUID() },
+        (err) =>
+          err
+            ? reject(err instanceof Error ? err : new Error(String(err)))
+            : resolve(),
+      );
     });
   }
 
-  private async getChannel(): Promise<amqp.Channel> {
+  private async getChannel(): Promise<amqp.ConfirmChannel> {
     if (this.channel) return this.channel;
 
     if (!this.model) {
       this.model = await amqp.connect(this.rabbitmqUrl, { recovery: true });
     }
 
-    const channel = await this.model.createChannel();
+    const channel = await this.model.createConfirmChannel();
 
     if (this.options.deadLetter) {
       await assertDeadLetterQueue(channel, deadLetterTopologyFor(this.queue));

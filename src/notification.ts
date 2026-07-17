@@ -30,6 +30,7 @@ import {
 import {
   SEND_CONFIRMATION_COMMAND_QUEUE,
   SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
+  sendConfirmationCommandSchema,
   type SendConfirmationCommand,
   type SubscriptionNotificationEvent,
 } from './modules/notification/rabbitmq/saga/saga.contract';
@@ -111,7 +112,10 @@ const bootstrap = async (): Promise<void> => {
       config.RABBITMQ_URL,
       SEND_CONFIRMATION_COMMAND_QUEUE,
       new SendConfirmationCommandHandler(channel, subscriptionEventPublisher),
-      { maxAttempts: 5 },
+      {
+        maxAttempts: 5,
+        parseMessage: (raw) => sendConfirmationCommandSchema.parse(raw),
+      },
     );
   const confirmationCommandsModel = await confirmationCommandsConsumer.start();
 

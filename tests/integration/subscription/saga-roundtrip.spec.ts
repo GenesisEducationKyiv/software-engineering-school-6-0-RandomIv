@@ -1,7 +1,6 @@
 import amqp from 'amqplib';
 import { RabbitConsumer } from '../../../src/core/rabbitmq/rabbit-consumer';
 import { RabbitMessagePublisher } from '../../../src/core/rabbitmq/rabbit-publisher';
-import { SagaConfirmationProvider } from '../../../src/modules/notification/rabbitmq/saga/saga.provider';
 import { SendConfirmationCommandHandler } from '../../../src/modules/notification/rabbitmq/saga/saga.handler';
 import { SubscriptionSagaOrchestrator } from '../../../src/modules/subscription/saga/subscription-saga.orchestrator';
 import {
@@ -38,7 +37,7 @@ describe('subscription saga MQ round-trip', () => {
   let adminChannel: amqp.Channel;
   let commandConsumerModel: amqp.RecoveringChannelModel;
   let eventConsumerModel: amqp.RecoveringChannelModel;
-  let provider: SagaConfirmationProvider;
+  let orchestrator: SubscriptionSagaOrchestrator;
 
   const channel: jest.Mocked<NotificationChannel> = {
     sendConfirmation: jest.fn().mockResolvedValue(undefined),
@@ -76,22 +75,22 @@ describe('subscription saga MQ round-trip', () => {
     );
     commandConsumerModel = await commandConsumer.start();
 
-    const orchestrator = new SubscriptionSagaOrchestrator(
+    const commandPublisher =
+      new RabbitMessagePublisher<SendConfirmationCommand>(
+        RABBITMQ_URL,
+        SEND_CONFIRMATION_COMMAND_QUEUE,
+      );
+    orchestrator = new SubscriptionSagaOrchestrator(
+      commandPublisher,
       subscriptionRepository,
     );
+
     const eventConsumer = new RabbitConsumer<SubscriptionNotificationEvent>(
       RABBITMQ_URL,
       SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE,
       orchestrator,
     );
     eventConsumerModel = await eventConsumer.start();
-
-    const commandPublisher =
-      new RabbitMessagePublisher<SendConfirmationCommand>(
-        RABBITMQ_URL,
-        SEND_CONFIRMATION_COMMAND_QUEUE,
-      );
-    provider = new SagaConfirmationProvider(commandPublisher);
   });
 
   beforeEach(async () => {
@@ -109,13 +108,13 @@ describe('subscription saga MQ round-trip', () => {
   });
 
   it('sends the confirmation and completes the saga on success', async () => {
-    await provider.sendConfirmation(
-      'sub-success',
-      'user@example.com',
-      'owner/repo',
-      'https://app.example.com/confirm/token',
-      'https://app.example.com/unsubscribe/token',
-    );
+    await orchestrator.start({
+      subscriptionId: 'sub-success',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: 'https://app.example.com/confirm/token',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    });
 
     await waitFor(() => channel.sendConfirmation.mock.calls.length > 0);
 
@@ -135,13 +134,13 @@ describe('subscription saga MQ round-trip', () => {
       .mockRejectedValueOnce(new Error('SMTP down'))
       .mockRejectedValueOnce(new Error('SMTP down'));
 
-    await provider.sendConfirmation(
-      'sub-failure',
-      'user@example.com',
-      'owner/repo',
-      'https://app.example.com/confirm/token',
-      'https://app.example.com/unsubscribe/token',
-    );
+    await orchestrator.start({
+      subscriptionId: 'sub-failure',
+      to: 'user@example.com',
+      repo: 'owner/repo',
+      confirmationUrl: 'https://app.example.com/confirm/token',
+      unsubscribeUrl: 'https://app.example.com/unsubscribe/token',
+    });
 
     await waitFor(
       () => subscriptionRepository.deleteById.mock.calls.length > 0,

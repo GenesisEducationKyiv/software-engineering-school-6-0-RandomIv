@@ -24,7 +24,6 @@ import { CachedGitHubClient } from './integrations/github/cached-github.client';
 import { GitHubService } from './integrations/github/github.service';
 
 import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
-import { SagaConfirmationProvider } from './modules/notification/rabbitmq/saga/saga.provider';
 import { GrpcNotificationProvider } from './modules/notification/grpc/grpc.provider';
 import {
   SEND_CONFIRMATION_COMMAND_QUEUE,
@@ -50,17 +49,15 @@ export const createDependencyContainer = (): DependencyContainer => {
     SEND_CONFIRMATION_COMMAND_QUEUE,
   );
 
-  const sagaConfirmationProvider = new SagaConfirmationProvider(sagaPublisher);
   const releaseNotificationProvider = new GrpcNotificationProvider(
     config.NOTIFICATION_GRPC_URL ?? DEFAULT_NOTIFICATION_GRPC_URL,
   );
-
-  const confirmationPort = sagaConfirmationProvider;
 
   const repositoryRepository = new PrismaRepositoryRepository(prisma);
   const subscriptionRepository = new PrismaSubscriptionRepository(prisma);
 
   const subscriptionSagaOrchestrator = new SubscriptionSagaOrchestrator(
+    sagaPublisher,
     subscriptionRepository,
   );
 
@@ -78,7 +75,7 @@ export const createDependencyContainer = (): DependencyContainer => {
     subscriptionRepository,
     repositoryProvider,
     repositoryRepository,
-    confirmationPort,
+    subscriptionSagaOrchestrator,
     appBaseUrl,
   );
 

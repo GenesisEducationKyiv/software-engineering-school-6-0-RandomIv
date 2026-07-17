@@ -8,7 +8,7 @@ import {
   type SendConfirmationResponse,
   type SendReleaseRequest,
   type SendReleaseResponse,
-} from '../../../generated/v1/notification';
+} from '../../../generated/notification/v1/notification';
 
 const GRPC_CALL_TIMEOUT_MS = 5000;
 

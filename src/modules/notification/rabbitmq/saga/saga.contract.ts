@@ -1,19 +1,35 @@
+import { z } from 'zod';
+
 export const SEND_CONFIRMATION_COMMAND_QUEUE = 'notification.send-confirmation';
 export const SUBSCRIPTION_NOTIFICATION_EVENTS_QUEUE =
   'notification.subscription-events';
 
-export interface SendConfirmationCommand {
-  subscriptionId: string;
-  to: string;
-  repo: string;
-  confirmationUrl: string;
-  unsubscribeUrl: string;
-}
+export const sendConfirmationCommandSchema = z.object({
+  subscriptionId: z.string().min(1),
+  to: z.email(),
+  repo: z.string().min(1),
+  confirmationUrl: z.url(),
+  unsubscribeUrl: z.url(),
+});
 
-export type SubscriptionNotificationEvent =
-  | { type: 'confirmation-sent'; subscriptionId: string }
-  | {
-      type: 'confirmation-failed';
-      subscriptionId: string;
-      reason: string;
-    };
+export const subscriptionNotificationEventSchema = z.discriminatedUnion(
+  'type',
+  [
+    z.object({
+      type: z.literal('confirmation-sent'),
+      subscriptionId: z.string().min(1),
+    }),
+    z.object({
+      type: z.literal('confirmation-failed'),
+      subscriptionId: z.string().min(1),
+      reason: z.string(),
+    }),
+  ],
+);
+
+export type SendConfirmationCommand = z.infer<
+  typeof sendConfirmationCommandSchema
+>;
+export type SubscriptionNotificationEvent = z.infer<
+  typeof subscriptionNotificationEventSchema
+>;

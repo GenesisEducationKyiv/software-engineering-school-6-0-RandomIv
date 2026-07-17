@@ -1,5 +1,5 @@
 import * as grpc from '@grpc/grpc-js';
-import { NotificationServiceService } from '../../../generated/v1/notification';
+import { NotificationServiceService } from '../../../generated/notification/v1/notification';
 import { logger } from '../../../core/logger';
 import type { NotificationGrpcHandlers } from './notification.grpc.controller';
 

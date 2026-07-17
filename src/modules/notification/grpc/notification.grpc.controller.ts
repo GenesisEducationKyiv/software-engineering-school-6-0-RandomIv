@@ -7,7 +7,7 @@ import type {
   SendConfirmationResponse,
   SendReleaseRequest,
   SendReleaseResponse,
-} from '../../../generated/v1/notification';
+} from '../../../generated/notification/v1/notification';
 
 export class NotificationGrpcController {
   constructor(private readonly channel: NotificationChannel) {}
