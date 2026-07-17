@@ -251,6 +251,74 @@ Expected response shape:
 npm test -- --runInBand tests/integration/subscription.grpc.spec.ts
 ```
 
+## Notification gRPC API (REST → gRPC migration)
+
+The internal API Service → Notification Service call for sending confirmation/release emails
+was originally REST-only (`src/modules/notification/rest/`). That REST implementation is still
+present and fully functional — it has not been removed. A gRPC implementation of the exact same
+operation now exists alongside it, defined via `.proto` and generated with
+[`buf`](https://buf.build) + [`ts-proto`](https://github.com/stephenh/ts-proto).
+
+Proto file: `proto/notification/v1/notification.proto`
+
+Service: `notification.v1.NotificationService`
+
+Methods:
+- `SendConfirmation`
+- `SendRelease`
+
+Both the REST controller (`NotificationRestController`) and the gRPC controller
+(`NotificationGrpcController`) delegate to the same `NotificationChannel`
+(`EmailNotificationProvider`) — identical business logic, two transports. Neither
+`HttpNotificationProvider` (REST client) nor `GrpcNotificationProvider` (gRPC client) is wired
+into the API service's dependency container by default; the production confirmation flow uses
+the RabbitMQ saga (see `docs/SAGA-EXPLAINED.md` / `CLAUDE.md`). Both clients are fully
+implemented and tested standalone, ready to be wired in if a synchronous call is ever needed.
+
+Regenerate the generated TypeScript stubs after editing the `.proto`:
+```bash
+npm run proto:lint
+npm run proto:generate
+```
+
+Example with `grpcurl`:
+```bash
+grpcurl -plaintext \
+  -import-path ./proto/notification/v1 \
+  -proto notification.proto \
+  -d '{"to":"user@example.com","repo":"owner/repo","confirmationUrl":"https://example.com/c","unsubscribeUrl":"https://example.com/u"}' \
+  localhost:50061 notification.v1.NotificationService/SendConfirmation
+```
+
+Invalid requests return `INVALID_ARGUMENT` (zod validation, same rules as the REST endpoint);
+downstream failures (e.g. SMTP errors) return `INTERNAL` — both mapped by the shared
+`toGrpcServiceError` used by every gRPC controller in this repo.
+
+### Throughput comparison (REST vs gRPC) ⭐
+
+Measured locally against the real notification service (real SMTP delivery via a local Mailhog
+instance, real RabbitMQ connection — not mocked), same payload, same concurrency (50 connections,
+15s), one transport at a time:
+
+- REST: `autocannon -m POST -c 50 -d 15 http://localhost:3001/send-confirmation`
+- gRPC: a small custom Node script driving 50 concurrent unary `SendConfirmation` calls for 15s
+  via the generated `NotificationServiceClient` (used instead of `ghz`, which requires a
+  separate CLI binary not available in this environment)
+
+| Transport | Req/sec (avg) | Latency p50 | Latency p97.5 | Latency p99 |
+|-----------|--------------:|------------:|---------------:|------------:|
+| REST (HTTP/1.1 + JSON) | 706.6 | 68 ms | 108 ms | 130 ms |
+| gRPC (HTTP/2 + Protobuf) | 763.0 | 64.3 ms | 90.9 ms | 102.8 ms |
+
+gRPC comes out ~8% ahead on average throughput and noticeably tighter on tail latency (p97.5/p99).
+In this specific benchmark the dominant cost on *both* paths is the real SMTP round-trip inside
+`EmailNotificationProvider` — identical work happens after the request is decoded, which caps how
+much daylight can show between the two transports. The gap that does show up matches the expected
+transport-level difference: HTTP/2 multiplexes many concurrent unary calls over a single
+persistent connection with binary Protobuf framing, while HTTP/1.1 pays a JSON parse/serialize
+cost and more per-request overhead on each of the 50 independently-managed connections. The
+difference would be larger for a lighter-weight handler with no external I/O in the critical path.
+
 ## Notes
 
 - GitHub `429 Too Many Requests` is handled and mapped as rate-limit errors.

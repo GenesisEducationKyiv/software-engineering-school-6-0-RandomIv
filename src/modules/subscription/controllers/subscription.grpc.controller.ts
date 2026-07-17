@@ -8,7 +8,6 @@ import {
   tokenParamSchema,
 } from '../subscription.schema';
 import { toSubscriptionDto } from './subscription.mapper';
-import { toGrpcServiceError } from '../../../core/grpc/grpc.error-mapper';
 import type {
   ConfirmRequest,
   GetSubscriptionsRequest,
@@ -18,72 +17,9 @@ import type {
   SubscribeRequest,
   UnsubscribeRequest,
 } from '../../../core/grpc/grpc.types';
-import { status } from '@grpc/grpc-js';
-import { logger } from '../../../core/logger';
-import { getGrpcMetrics } from '../../../core/metrics/prometheus';
+import { withUnaryHandler } from '../../../core/grpc/with-unary-handler';
 
 const API_KEY_METADATA_KEY = 'x-api-key';
-
-const getCallPath = (call: grpc.ServerUnaryCall<unknown, unknown>): string => {
-  return call.getPath();
-};
-
-const withUnaryHandler = <TRequest, TResponse>(
-  handler: (
-    call: grpc.ServerUnaryCall<TRequest, TResponse>,
-  ) => Promise<TResponse>,
-): grpc.handleUnaryCall<TRequest, TResponse> => {
-  const { requestCounter, requestDurationHistogram } = getGrpcMetrics();
-  return (call, callback) => {
-    const stopTimer = requestDurationHistogram.startTimer();
-    const path = getCallPath(call);
-
-    const parts = path.split('/');
-    const service = parts[1] ?? 'unknown';
-    const method = parts[2] ?? 'unknown';
-
-    handler(call)
-      .then((result) => {
-        const labels = {
-          method,
-          service,
-          status_code: String(status.OK),
-        };
-        requestCounter.inc(labels);
-        stopTimer(labels);
-
-        callback(null, result);
-      })
-      .catch((error: unknown) => {
-        const grpcError = toGrpcServiceError(error);
-        const statusCode = grpcError.code ?? status.INTERNAL;
-        const labels = {
-          method,
-          service,
-          status_code: String(statusCode),
-        };
-        requestCounter.inc(labels);
-        stopTimer(labels);
-
-        logger.error(
-          {
-            err: {
-              message: grpcError.message,
-              stack: grpcError.stack,
-              name: grpcError.name,
-            },
-            grpcCode: statusCode,
-            grpcDetails: grpcError.details,
-            path,
-            request: call.request,
-          },
-          'gRPC handler failure',
-        );
-
-        callback(grpcError);
-      });
-  };
-};
 
 const getApiKeyFromMetadata = (metadata: grpc.Metadata): string | undefined => {
   const raw = metadata.get(API_KEY_METADATA_KEY)[0];

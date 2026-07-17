@@ -2,6 +2,7 @@ import 'dotenv/config';
 import type { Server } from 'node:http';
 import express from 'express';
 import nodemailer from 'nodemailer';
+import type * as grpc from '@grpc/grpc-js';
 import { emailSchema } from './config/email.config';
 import { notificationServiceSchema } from './config/notification.config';
 import { NodemailerService } from './integrations/email/email.service';
@@ -11,6 +12,11 @@ import {
   NotificationRestController,
   createNotificationRouter,
 } from './modules/notification/rest/rest.controller';
+import {
+  NotificationGrpcController,
+  createNotificationGrpcHandlers,
+} from './modules/notification/grpc/notification.grpc.controller';
+import { startNotificationGrpcServer } from './modules/notification/grpc/grpc.server';
 import { logger } from './core/logger';
 import { RabbitConsumer } from './core/rabbitmq/rabbit-consumer';
 import { RabbitMessagePublisher } from './core/rabbitmq/rabbit-publisher';
@@ -76,6 +82,14 @@ const bootstrap = async (): Promise<void> => {
     s.once('error', reject);
   });
 
+  const grpcController = new NotificationGrpcController(channel);
+  const grpcHandlers = createNotificationGrpcHandlers(grpcController);
+  const grpcServer: grpc.Server = await startNotificationGrpcServer(
+    grpcHandlers,
+    config.NOTIFICATION_GRPC_HOST,
+    config.NOTIFICATION_GRPC_PORT,
+  );
+
   const notificationConsumer = new RabbitConsumer<NotificationMessage>(
     config.RABBITMQ_URL,
     NOTIFICATION_QUEUE,
@@ -123,6 +137,7 @@ const bootstrap = async (): Promise<void> => {
         new Promise<void>((resolve, reject) =>
           server.close((err) => (err ? reject(err) : resolve())),
         ),
+        new Promise<void>((resolve) => grpcServer.tryShutdown(() => resolve())),
         mqModel.close(),
         confirmationCommandsModel.close(),
       ]);

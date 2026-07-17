@@ -1,0 +1,8 @@
+version: v2
+modules:
+  - path: proto
+    excludes:
+      - proto/release_notifier
+lint:
+  use:
+    - STANDARD

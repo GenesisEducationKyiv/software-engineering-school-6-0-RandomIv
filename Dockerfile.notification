@@ -10,8 +10,10 @@ RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM deps AS build
 COPY tsconfig.json tsconfig.notification.json ./
+COPY proto ./proto
+COPY buf.yaml buf.gen.yaml ./
 COPY src ./src
-RUN npm run build:notification
+RUN npm run proto:generate && npm run build:notification
 
 FROM base AS production-deps
 ENV NODE_ENV=production
